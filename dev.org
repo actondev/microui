@@ -1,0 +1,6 @@
+#+PROPERTY: header-args:sh :session *microui*
+* Build the demo
+  #+begin_src sh
+(cd demo && ./build.sh)
+./demo/a.out
+  #+end_src

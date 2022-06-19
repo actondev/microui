@@ -1,7 +1,13 @@
 project('microui', 'c')
 
+src = files('src/microui/microui.c')
+
+if get_option('demo')
+  src += files('src/microui/demo.c')
+endif
+
 microui = library('microui',
-                  files('src/microui.c'),
+                  src,
                   include_directories: 'src',
                  )
 microui_dep = declare_dependency(

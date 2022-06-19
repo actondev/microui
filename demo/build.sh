@@ -12,5 +12,5 @@ fi
 
 CFLAGS="-I../src -Wall -std=c11 -pedantic `sdl2-config --libs` $GLFLAG -lm -O3 -g"
 
-gcc main.c renderer.c ../src/microui.c $CFLAGS
+gcc main.c renderer.c ../src/microui/microui.c ../src/microui/demo.c $CFLAGS
 

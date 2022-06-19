@@ -1,7 +1,7 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
-#include "microui.h"
+#include "microui/microui.h"
 
 void r_init(void);
 void r_draw_rect(mu_Rect rect, mu_Color color);
