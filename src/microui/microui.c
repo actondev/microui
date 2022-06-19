@@ -47,14 +47,14 @@
   } while (0)
 
 
-static mu_Rect unclipped_rect = { 0, 0, 0x1000000, 0x1000000 };
+static mu_Rect unclipped_rect = {{ 0, 0, 0x1000000, 0x1000000 }};
 
 static mu_Style default_style = {
   // Note:
   // - spacing of 1 would cause the 1px border of adjacent items to align
-  // - item row content height is 10px (?)
+  // - item row content height is size.y (see below)
   NULL,       /* font */
-  { 68, 10 }, /* size */
+  {{ 68, 10 }}, /* size */
   6, 4, 24,   /* padding, spacing, indent */
   24, 20,     /* title_height, footer_height */
   12, 8,      /* scrollbar_size, thumb_size */
@@ -63,6 +63,7 @@ static mu_Style default_style = {
     { 25,  25,  25,  255 }, /* MU_COLOR_BORDER */
     { 50,  50,  50,  255 }, /* MU_COLOR_WINDOWBG */
     { 25,  25,  25,  255 }, /* MU_COLOR_TITLEBG */
+    { 115, 115, 115, 255 }, /* MU_COLOR_FOOTERBG */
     { 240, 240, 240, 255 }, /* MU_COLOR_TITLETEXT */
     { 0,   0,   0,   0   }, /* MU_COLOR_PANELBG */
     { 75,  75,  75,  255 }, /* MU_COLOR_BUTTON */
@@ -1096,7 +1097,7 @@ static void end_root_container(mu_Context *ctx) {
 
 
 int mu_begin_window_ex(mu_Context *ctx, const char *title, mu_Rect rect, int opt) {
-  mu_Rect body, titlerect;
+  mu_Rect body, titlerect, footer_rect;
   mu_Id id = mu_get_id(ctx, title, strlen(title));
   mu_Container *cnt = get_container(ctx, id, opt);
   if (!cnt || !cnt->open) { return 0; }
@@ -1150,6 +1151,11 @@ int mu_begin_window_ex(mu_Context *ctx, const char *title, mu_Rect rect, int opt
   if (~opt & MU_OPT_NORESIZE) {
     int sz = ctx->style->footer_height;
     mu_Id id = mu_get_id(ctx, "!resize", 7);
+    footer_rect.x = rect.x;
+    footer_rect.y = rect.y + rect.h-sz;
+    footer_rect.w = rect.w;
+    footer_rect.h = sz;
+    ctx->draw_frame(ctx, footer_rect, MU_COLOR_FOOTERBG);
     mu_Rect r = mu_rect(rect.x + rect.w - sz, rect.y + rect.h - sz, sz, sz);
     mu_update_control(ctx, id, r, opt);
     mu_draw_icon(ctx, MU_ICON_RESIZE, r, ctx->style->colors[MU_COLOR_TEXT]);
