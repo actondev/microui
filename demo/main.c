@@ -6,7 +6,6 @@
 
 static  char logbuf[64000];
 static   int logbuf_updated = 0;
-static float bg[3] = { 90, 95, 100 };
 
 
 static void write_log(const char *text) {
@@ -94,20 +93,49 @@ static void test_window(mu_Context *ctx) {
 
     /* background color sliders */
     if (mu_header_ex(ctx, "Background Color", MU_OPT_EXPANDED)) {
-      mu_layout_row(ctx, 2, (int[]) { -78, -1 }, 74);
+      static float bg[3] = { 90, 95, 100 };
+      static int do_button = 0;
+      mu_checkbox(ctx, "use button for the right layout", &do_button);
+      int content_height = 10;
+      int row_height = 3*(10*content_height +2*ctx->style->padding + ctx->style->spacing) - ctx->style->spacing;
+      (void)row_height;
+      // we either pass the calculated row_height from above, or 0 (for default height)
+      // In the second case, we need to calculate & set the layout height (as done below).
+      // In the first case, the r.h = {..} could be avoided.
+      mu_layout_row(ctx, 2, (const int[]) { -78, -1 }, 0);
       /* sliders */
       mu_layout_begin_column(ctx);
-      mu_layout_row(ctx, 2, (int[]) { 46, -1 }, 0);
+      mu_layout_row(ctx, 2, (const int[]) { 46, -1 }, 0);
+      mu_Rect rect1 = mu_layout_next(ctx);
+      mu_layout_set_next(ctx, rect1, 0);
       mu_label(ctx, "Red:");   mu_slider(ctx, &bg[0], 0, 255);
       mu_label(ctx, "Green:"); mu_slider(ctx, &bg[1], 0, 255);
       mu_label(ctx, "Blue:");  mu_slider(ctx, &bg[2], 0, 255);
+      mu_Rect rect2 = mu_layout_next(ctx);
+      mu_layout_set_next(ctx, rect2, 0);
       mu_layout_end_column(ctx);
       /* color preview */
       mu_Rect r = mu_layout_next(ctx);
-      mu_draw_rect(ctx, r, mu_color(bg[0], bg[1], bg[2], 255));
+      // if the row_height was used (instead of 0) in the
+      // mu_layout_row (the one before the layout_bein_column), the
+      // next line could be skipped (as the r.h will already have the
+      // correct value)
+      r.h = rect2.y-rect1.y - ctx->style->spacing;
       char buf[32];
-      sprintf(buf, "#%02X%02X%02X", (int) bg[0], (int) bg[1], (int) bg[2]);
-      mu_draw_control_text(ctx, buf, r, MU_COLOR_TEXT, MU_OPT_ALIGNCENTER);
+      sprintf(buf, "#%02X%02X%02X", (int)bg[0], (int)bg[1], (int)bg[2]);
+      if(do_button) {
+        mu_layout_set_next(ctx, r, 0);
+        mu_Color &color = ctx->style->colors[MU_COLOR_BUTTON];
+        mu_Color prev_color = color;
+        color.r = bg[0];
+        color.g = bg[1];
+        color.b = bg[2];
+        mu_button(ctx, buf);
+        color = prev_color;
+      } else {
+        mu_draw_rect(ctx, r, mu_color(bg[0], bg[1], bg[2], 255));
+        mu_draw_control_text(ctx, buf, r, MU_COLOR_TEXT, MU_OPT_ALIGNCENTER);
+      }
     }
 
     mu_end_window(ctx);
