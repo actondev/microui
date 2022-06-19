@@ -50,10 +50,14 @@
 static mu_Rect unclipped_rect = { 0, 0, 0x1000000, 0x1000000 };
 
 static mu_Style default_style = {
-  /* font | size | padding | spacing | indent */
-  NULL, { 68, 10 }, 5, 4, 24,
-  /* title_height | footer_height | scrollbar_size | thumb_size */
-  24, 20, 12, 8,
+  // Note:
+  // - spacing of 1 would cause the 1px border of adjacent items to align
+  // - item row content height is 10px (?)
+  NULL,       /* font */
+  { 68, 10 }, /* size */
+  6, 4, 24,   /* padding, spacing, indent */
+  24, 20,     /* title_height, footer_height */
+  12, 8,      /* scrollbar_size, thumb_size */
   {
     { 230, 230, 230, 255 }, /* MU_COLOR_TEXT */
     { 25,  25,  25,  255 }, /* MU_COLOR_BORDER */
