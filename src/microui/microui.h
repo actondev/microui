@@ -35,6 +35,11 @@ enum {
 };
 
 enum {
+  MU_AXIS_X = 0,
+  MU_AXIS_Y,
+};
+
+enum {
   MU_COMMAND_JUMP = 1,
   MU_COMMAND_CLIP,
   MU_COMMAND_RECT,
@@ -112,8 +117,8 @@ typedef unsigned mu_Id;
 typedef MU_REAL mu_Real;
 typedef void* mu_Font;
 
-typedef struct { int x, y; } mu_Vec2;
-typedef struct { int x, y, w, h; } mu_Rect;
+typedef union { struct { int x, y; }; int data[2]; } mu_Vec2;
+typedef union { struct { int x, y, w, h; }; int data[4];} mu_Rect;
 typedef struct { unsigned char r, g, b, a; } mu_Color;
 typedef struct { mu_Id id; int last_update; } mu_PoolItem;
 

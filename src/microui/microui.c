@@ -988,44 +988,57 @@ void mu_end_treenode(mu_Context *ctx) {
   mu_pop_id(ctx);
 }
 
+static void scrollbar(mu_Context *ctx, mu_Container *cnt, mu_Rect *b,
+                       mu_Vec2 cs, int axis) {
+  static const char *scrollbar_ids[] = {
+      "!scrollbarx",
+      "!scrollbary",
+  };
 
-#define scrollbar(ctx, cnt, b, cs, x, y, w, h)                              \
-  do {                                                                      \
-    /* only add scrollbar if content size is larger than body */            \
-    int maxscroll = cs.y - b->h;                                            \
-                                                                            \
-    if (maxscroll > 0 && b->h > 0) {                                        \
-      mu_Rect base, thumb;                                                  \
-      mu_Id id = mu_get_id(ctx, "!scrollbar" #y, 11);                       \
-                                                                            \
-      /* get sizing / positioning */                                        \
-      base = *b;                                                            \
-      base.x = b->x + b->w;                                                 \
-      base.w = ctx->style->scrollbar_size;                                  \
-                                                                            \
-      /* handle input */                                                    \
-      mu_update_control(ctx, id, base, 0);                                  \
-      if (ctx->focus == id && ctx->mouse_down == MU_MOUSE_LEFT) {           \
-        cnt->scroll.y += ctx->mouse_delta.y * cs.y / base.h;                \
-      }                                                                     \
-      /* clamp scroll to limits */                                          \
-      cnt->scroll.y = mu_clamp(cnt->scroll.y, 0, maxscroll);                \
-                                                                            \
-      /* draw base and thumb */                                             \
-      ctx->draw_frame(ctx, base, MU_COLOR_SCROLLBASE);                      \
-      thumb = base;                                                         \
-      thumb.h = mu_max(ctx->style->thumb_size, base.h * b->h / cs.y);       \
-      thumb.y += cnt->scroll.y * (base.h - thumb.h) / maxscroll;            \
-      ctx->draw_frame(ctx, thumb, MU_COLOR_SCROLLTHUMB);                    \
-                                                                            \
-      /* set this as the scroll_target (will get scrolled on mousewheel) */ \
-      /* if the mouse is over it */                                         \
-      if (mu_mouse_over(ctx, *b)) { ctx->scroll_target = cnt; }             \
-    } else {                                                                \
-      cnt->scroll.y = 0;                                                    \
-    }                                                                       \
-  } while (0)
+  // Explanatory comments in this scope assume axis == MU_AXIS_Y (ie
+  // the vertical scrollbar on the right)
 
+  int size = axis + 2; // x->w, y->h. size means height
+
+  /* only add scrollbar if content size is larger than body */
+  int maxscroll = cs.data[axis] - b->data[size]; // ie cs.y - b->h
+
+  if (maxscroll > 0 && b->data[size] > 0) {
+    mu_Rect base, thumb; // base is the whole scrollbar (ie its background)
+    mu_Id id = mu_get_id(ctx, scrollbar_ids[axis], 11);
+
+    /* get sizing / positioning */
+    int other_axis = !axis; // otheraxis (x)
+    int other_size = other_axis + 2; // width
+    base = *b;
+    // base.x = b->w + b->w. The scrollbar position
+    base.data[other_axis] = b->data[other_axis] + b->data[other_size];
+    base.data[other_size] = ctx->style->scrollbar_size; // base.w
+
+    /* handle input */
+    mu_update_control(ctx, id, base, 0);
+    if (ctx->focus == id && ctx->mouse_down == MU_MOUSE_LEFT) {
+      cnt->scroll.data[axis] += ctx->mouse_delta.data[axis] * cs.data[axis] / base.data[size];
+    }
+    /* clamp scroll to limits */
+    cnt->scroll.data[axis] = mu_clamp(cnt->scroll.data[axis], 0, maxscroll);
+
+    /* draw base and thumb */
+    ctx->draw_frame(ctx, base, MU_COLOR_SCROLLBASE);
+    thumb = base;
+    thumb.data[size] = mu_max(ctx->style->thumb_size, base.data[size] * b->data[size] / cs.data[axis]);
+    thumb.data[axis] += cnt->scroll.data[axis] * (base.data[size] - thumb.data[size]) / maxscroll;
+    ctx->draw_frame(ctx, thumb, MU_COLOR_SCROLLTHUMB);
+
+    /* set this as the scroll_target (will get scrolled on mousewheel) */
+    /* if the mouse is over it */
+    if (mu_mouse_over(ctx, *b)) {
+      ctx->scroll_target = cnt;
+    }
+  } else {
+    cnt->scroll.data[axis] = 0;
+  }
+}
 
 static void scrollbars(mu_Context *ctx, mu_Container *cnt, mu_Rect *body) {
   int sz = ctx->style->scrollbar_size;
@@ -1036,10 +1049,8 @@ static void scrollbars(mu_Context *ctx, mu_Container *cnt, mu_Rect *body) {
   /* resize body to make room for scrollbars */
   if (cs.y > cnt->body.h) { body->w -= sz; }
   if (cs.x > cnt->body.w) { body->h -= sz; }
-  /* to create a horizontal or vertical scrollbar almost-identical code is
-  ** used; only the references to `x|y` `w|h` need to be switched */
-  scrollbar(ctx, cnt, body, cs, x, y, w, h);
-  scrollbar(ctx, cnt, body, cs, y, x, h, w);
+  scrollbar(ctx, cnt, body, cs, MU_AXIS_Y);
+  scrollbar(ctx, cnt, body, cs, MU_AXIS_X);
   mu_pop_clip_rect(ctx);
 }
 
