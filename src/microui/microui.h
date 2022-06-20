@@ -158,6 +158,7 @@ typedef struct {
 
 typedef struct {
   mu_Command *head, *tail;
+  vgir_jump_t vgir_head, vgir_tail;
   mu_Rect rect;
   mu_Rect body;
   mu_Vec2 content_size;
@@ -181,6 +182,7 @@ typedef struct {
 
 struct mu_Context {
   vgir_ctx* vgir;
+  vgir_jump_t vgir_begin;
   /* callbacks */
   int (*text_width)(mu_Font font, const char *str, int len);
   int (*text_height)(mu_Font font);

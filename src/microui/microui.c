@@ -146,6 +146,9 @@ void mu_set_vgir(mu_Context *ctx, vgir_ctx *vgir) {
 
 
 void mu_begin(mu_Context *ctx) {
+  if(ctx->vgir) {
+    ctx->vgir_begin = vgir_store_jump_src(ctx->vgir);
+  }
   expect(ctx->text_width && ctx->text_height);
   ctx->command_list.idx = 0;
   ctx->root_list.idx = 0;
@@ -216,6 +219,20 @@ void mu_end(mu_Context *ctx) {
     if (i == n - 1) {
       cnt->tail->jump.dst = ctx->command_list.items + ctx->command_list.idx;
     }
+  }
+  if(ctx->vgir) {
+    vgir_ctx *vgir = ctx->vgir;
+    vgir_jump_t begin = ctx->vgir_begin;
+    mu_Container *first = ctx->root_list.items[0];
+    vgir_set_jump_dst(vgir, begin, first->vgir_head);
+    for(i=0; i < n-1; i++ ) {
+      mu_Container *current = ctx->root_list.items[i];
+      mu_Container *next = ctx->root_list.items[i+1];
+      vgir_set_jump_dst(vgir, current->vgir_tail, next->vgir_head);
+    }
+    vgir_jump_t end = vgir_store_jump_src(vgir);
+    mu_Container *last = ctx->root_list.items[n - 1];
+    vgir_set_jump_dst(vgir, last->vgir_tail, end);
   }
 }
 
@@ -1125,6 +1142,9 @@ static void begin_root_container(mu_Context *ctx, mu_Container *cnt) {
   /* push container to roots list and push head command */
   push(ctx->root_list, cnt);
   cnt->head = push_jump(ctx, NULL);
+  if(ctx->vgir) {
+    cnt->vgir_head = vgir_store_jump_src(ctx->vgir);
+  }
   /* set as hover root if the mouse is overlapping this container and it has a
   ** higher zindex than the current hover root */
   if (rect_overlaps_vec2(cnt->rect, ctx->mouse_pos) &&
@@ -1144,6 +1164,9 @@ static void end_root_container(mu_Context *ctx) {
   ** on initing these are done in mu_end() */
   mu_Container *cnt = mu_get_current_container(ctx);
   cnt->tail = push_jump(ctx, NULL);
+  if (ctx->vgir) {
+    cnt->vgir_tail = vgir_store_jump_src(ctx->vgir);
+  }
   cnt->head->jump.dst = ctx->command_list.items + ctx->command_list.idx;
   /* pop base clip rect and container */
   mu_pop_clip_rect(ctx);
