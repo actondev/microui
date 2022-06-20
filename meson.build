@@ -9,6 +9,9 @@ endif
 microui = library('microui',
                   src,
                   include_directories: 'src',
+                  dependencies: [
+                    dependency('vgir')
+                  ]
                  )
 microui_dep = declare_dependency(
   link_with: microui,

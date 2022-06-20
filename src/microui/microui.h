@@ -8,6 +8,8 @@
 #ifndef MICROUI_H
 #define MICROUI_H
 
+#include <vgir/vgir.h>
+
 #define MU_VERSION "2.01"
 
 #define MU_COMMANDLIST_SIZE     (256 * 1024)
@@ -178,6 +180,7 @@ typedef struct {
 } mu_Style;
 
 struct mu_Context {
+  vgir_ctx* vgir;
   /* callbacks */
   int (*text_width)(mu_Font font, const char *str, int len);
   int (*text_height)(mu_Font font);
@@ -226,6 +229,7 @@ mu_Rect mu_rect(int x, int y, int w, int h);
 mu_Color mu_color(int r, int g, int b, int a);
 
 void mu_init(mu_Context *ctx);
+void mu_set_vgir(mu_Context*, vgir_ctx*);
 void mu_begin(mu_Context *ctx);
 void mu_end(mu_Context *ctx);
 void mu_set_focus(mu_Context *ctx, mu_Id id);

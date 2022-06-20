@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "microui.h"
+#include <vgir/vgir.h>
 
 #define unused(x) ((void) (x))
 
@@ -131,12 +132,16 @@ static void draw_frame(mu_Context *ctx, mu_Rect rect, int colorid) {
   }
 }
 
-
 void mu_init(mu_Context *ctx) {
   memset(ctx, 0, sizeof(*ctx));
+  ctx->vgir = NULL;
   ctx->draw_frame = draw_frame;
   ctx->_style = default_style;
   ctx->style = &ctx->_style;
+}
+
+void mu_set_vgir(mu_Context *ctx, vgir_ctx *vgir) {
+  ctx->vgir = vgir;
 }
 
 
@@ -462,6 +467,10 @@ static mu_Command* push_jump(mu_Context *ctx, mu_Command *dst) {
 
 
 void mu_set_clip(mu_Context *ctx, mu_Rect rect) {
+  if(ctx->vgir) {
+    vgir_scissor(ctx->vgir, rect.x, rect.y, rect.w, rect.h);
+    return;
+  }
   mu_Command *cmd;
   cmd = mu_push_command(ctx, MU_COMMAND_CLIP, sizeof(mu_ClipCommand));
   cmd->clip.rect = rect;
@@ -472,14 +481,45 @@ void mu_draw_rect(mu_Context *ctx, mu_Rect rect, mu_Color color) {
   mu_Command *cmd;
   rect = intersect_rects(rect, mu_get_clip_rect(ctx));
   if (rect.w > 0 && rect.h > 0) {
-    cmd = mu_push_command(ctx, MU_COMMAND_RECT, sizeof(mu_RectCommand));
-    cmd->rect.rect = rect;
-    cmd->rect.color = color;
+    if (ctx->vgir) {
+      vgir_begin_path(ctx->vgir);
+      vgir_fill_color(ctx->vgir, color.r / 255.0, color.g / 255.0,
+                      color.b / 255.0, color.a / 255.0);
+      vgir_rect(ctx->vgir, rect.x, rect.y, rect.w, rect.h);
+      vgir_fill(ctx->vgir);
+    } else {
+      cmd = mu_push_command(ctx, MU_COMMAND_RECT, sizeof(mu_RectCommand));
+      cmd->rect.rect = rect;
+      cmd->rect.color = color;
+    }
   }
 }
 
 
 void mu_draw_box(mu_Context *ctx, mu_Rect rect, mu_Color color) {
+  if(1 && ctx->vgir) {
+    mu_Rect clip = mu_get_clip_rect(ctx);
+    mu_Rect intersected = intersect_rects(rect, clip);
+    if (intersected.w <= 0 || intersected.h <= 0) return;
+
+    vgir_ctx* vgir = ctx->vgir;
+    vgir_begin_path(vgir);
+    // TODO fix behavior: get prev_scissor & restore produces artifacts.
+    // push & pop works
+    /* vgir_rect_t prev_scissor = vgir_get_scissor(vgir); */
+    vgir_push_scissor(vgir, clip.x, clip.y, clip.w, clip.h);
+
+    vgir_scissor(vgir, clip.x, clip.y, clip.w, clip.h);
+    vgir_stroke_color(vgir, color.r/255.0, color.g/255.0, color.b/255.0, color.a/255.0);
+    vgir_stroke_width(vgir, 1);
+    vgir_rect(vgir, rect.x+0.5, rect.y+0.5, rect.w-1, rect.h-1);
+    vgir_stroke(vgir);
+
+    vgir_pop_scissor(vgir);
+    /* vgir_scissor(vgir, prev_scissor.x, prev_scissor.y, prev_scissor.w, prev_scissor.h); */
+
+    return;
+  }
   mu_draw_rect(ctx, mu_rect(rect.x + 1, rect.y, rect.w - 2, 1), color);
   mu_draw_rect(ctx, mu_rect(rect.x + 1, rect.y + rect.h - 1, rect.w - 2, 1), color);
   mu_draw_rect(ctx, mu_rect(rect.x, rect.y, 1, rect.h), color);
@@ -495,15 +535,27 @@ void mu_draw_text(mu_Context *ctx, mu_Font font, const char *str, int len,
     pos.x, pos.y, ctx->text_width(font, str, len), ctx->text_height(font));
   int clipped = mu_check_clip(ctx, rect);
   if (clipped == MU_CLIP_ALL ) { return; }
+
+  if(ctx->vgir) vgir_begin_path(ctx->vgir); // before clipping!
   if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
+
   /* add command */
   if (len < 0) { len = strlen(str); }
-  cmd = mu_push_command(ctx, MU_COMMAND_TEXT, sizeof(mu_TextCommand) + len);
-  memcpy(cmd->text.str, str, len);
-  cmd->text.str[len] = '\0';
-  cmd->text.pos = pos;
-  cmd->text.color = color;
-  cmd->text.font = font;
+  if(ctx->vgir) {
+    vgir_ctx *vgir = ctx->vgir;
+    vgir_fill_color(ctx->vgir, color.r / 255.0, color.g / 255.0,
+                    color.b / 255.0, color.a / 255.0);
+    const char *end = str + len;
+    vgir_text_align(vgir, LEFT | TOP);
+    vgir_text(vgir, pos.x, pos.y, str, end);
+  } else {
+    cmd = mu_push_command(ctx, MU_COMMAND_TEXT, sizeof(mu_TextCommand) + len);
+    memcpy(cmd->text.str, str, len);
+    cmd->text.str[len] = '\0';
+    cmd->text.pos = pos;
+    cmd->text.color = color;
+    cmd->text.font = font;
+  }
   /* reset clipping if it was set */
   if (clipped) { mu_set_clip(ctx, unclipped_rect); }
 }
@@ -516,10 +568,13 @@ void mu_draw_icon(mu_Context *ctx, int id, mu_Rect rect, mu_Color color) {
   if (clipped == MU_CLIP_ALL ) { return; }
   if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
   /* do icon command */
-  cmd = mu_push_command(ctx, MU_COMMAND_ICON, sizeof(mu_IconCommand));
-  cmd->icon.id = id;
-  cmd->icon.rect = rect;
-  cmd->icon.color = color;
+  if(ctx->vgir) {
+  } else {
+    cmd = mu_push_command(ctx, MU_COMMAND_ICON, sizeof(mu_IconCommand));
+    cmd->icon.id = id;
+    cmd->icon.rect = rect;
+    cmd->icon.color = color;
+  }
   /* reset clipping if it was set */
   if (clipped) { mu_set_clip(ctx, unclipped_rect); }
 }
