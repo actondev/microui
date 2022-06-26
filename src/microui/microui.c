@@ -1181,7 +1181,8 @@ int mu_begin_window_ex(mu_Context *ctx, const char *title, mu_Rect rect, int opt
   if (!cnt || !cnt->open) { return 0; }
   push(ctx->id_stack, id);
 
-  if (cnt->rect.w == 0) { cnt->rect = rect; }
+  // cnt->rect.w == 0 evaluates to true only on first run (uninitialized window)
+  if (cnt->rect.w == 0 || opt & MU_OPT_FIXED_SIZE) { cnt->rect = rect; }
   begin_root_container(ctx, cnt);
   rect = cnt->rect;
   body = rect;
