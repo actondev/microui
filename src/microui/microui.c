@@ -25,6 +25,7 @@
 #include <string.h>
 #include "microui.h"
 #include <vgir/vgir.h>
+#include <assert.h>
 
 #define unused(x) ((void) (x))
 
@@ -54,7 +55,11 @@ static mu_Style default_style = {
   // Note:
   // - spacing of 1 would cause the 1px border of adjacent items to align
   // - item row content height is size.y (see below)
-  NULL,       /* font */
+  -1,       /* font */
+  12, /* font_size */
+  -1, /* icon_font */
+  12, /* icon_font_size */
+  {{0}, {0}, {0}, {0}, {0}, {0}}, /* icons_utf8 */
   {{ 68, 10 }}, /* size */
   6, 4, 24,   /* padding, spacing, indent */
   24, 20,     /* title_height, footer_height */
@@ -544,12 +549,12 @@ void mu_draw_box(mu_Context *ctx, mu_Rect rect, mu_Color color) {
 }
 
 
-void mu_draw_text(mu_Context *ctx, mu_Font font, const char *str, int len,
+void mu_draw_text(mu_Context *ctx, mu_Font font, int font_size, const char *str, int len,
   mu_Vec2 pos, mu_Color color)
 {
   mu_Command *cmd;
   mu_Rect rect = mu_rect(
-    pos.x, pos.y, ctx->text_width(font, str, len), ctx->text_height(font));
+      pos.x, pos.y, ctx->text_width(font, font_size, str, len), ctx->text_height(font, font_size));
   int clipped = mu_check_clip(ctx, rect);
   if (clipped == MU_CLIP_ALL ) { return; }
 
@@ -560,6 +565,8 @@ void mu_draw_text(mu_Context *ctx, mu_Font font, const char *str, int len,
   if (len < 0) { len = strlen(str); }
   if(ctx->vgir) {
     vgir_ctx *vgir = ctx->vgir;
+    vgir_font_face_id(vgir, font);
+    vgir_font_size(vgir, font_size);
     vgir_fill_color(ctx->vgir, color.r / 255.0, color.g / 255.0,
                     color.b / 255.0, color.a / 255.0);
     const char *end = str + len;
@@ -586,6 +593,32 @@ void mu_draw_icon(mu_Context *ctx, int id, mu_Rect rect, mu_Color color) {
   if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
   /* do icon command */
   if(ctx->vgir) {
+    const char* text = NULL;
+    switch(id) {
+      case MU_ICON_CLOSE:
+        text = ctx->style->icons_utf8.close;
+        break;
+      case MU_ICON_RESIZE:
+        text = ctx->style->icons_utf8.resize;
+        break;
+      case MU_ICON_CHECK:
+        text = ctx->style->icons_utf8.check;
+        break;
+      case MU_ICON_COLLAPSED:
+        text = ctx->style->icons_utf8.collapsed;
+        break;
+      case MU_ICON_EXPANDED:
+        text = ctx->style->icons_utf8.expanded;
+        break;
+      case MU_ICON_MAX:
+        text = ctx->style->icons_utf8.max;
+        break;
+    }
+    assert(text);
+    int icon_width = ctx->text_width(ctx->style->icon_font, ctx->style->icon_font_size, text, -1);
+    int icon_height = ctx->text_height(ctx->style->icon_font, ctx->style->icon_font_size);
+    mu_Vec2 pos = {{rect.x + (rect.w-icon_width)/2, rect.y + (rect.h-icon_height)/2}};
+    mu_draw_text(ctx, ctx->style->icon_font, ctx->style->icon_font_size, text, -1, pos, color);
   } else {
     cmd = mu_push_command(ctx, MU_COMMAND_ICON, sizeof(mu_IconCommand));
     cmd->icon.id = id;
@@ -731,9 +764,11 @@ void mu_draw_control_text(mu_Context *ctx, const char *str, mu_Rect rect,
 {
   mu_Vec2 pos;
   mu_Font font = ctx->style->font;
-  int tw = ctx->text_width(font, str, -1);
+  int font_size = ctx->style->font_size;
+
+  int tw = ctx->text_width(font, font_size, str, -1);
   mu_push_clip_rect(ctx, rect);
-  pos.y = rect.y + (rect.h - ctx->text_height(font)) / 2;
+  pos.y = rect.y + (rect.h - ctx->text_height(font, font_size)) / 2;
   if (opt & MU_OPT_ALIGNCENTER) {
     pos.x = rect.x + (rect.w - tw) / 2;
   } else if (opt & MU_OPT_ALIGNRIGHT) {
@@ -741,7 +776,7 @@ void mu_draw_control_text(mu_Context *ctx, const char *str, mu_Rect rect,
   } else {
     pos.x = rect.x + ctx->style->padding;
   }
-  mu_draw_text(ctx, font, str, -1, pos, ctx->style->colors[colorid]);
+  mu_draw_text(ctx, font, font_size, str, -1, pos, ctx->style->colors[colorid]);
   mu_pop_clip_rect(ctx);
 }
 
@@ -779,9 +814,10 @@ void mu_text(mu_Context *ctx, const char *text) {
   const char *start, *end, *p = text;
   int width = -1;
   mu_Font font = ctx->style->font;
+  int font_size = ctx->style->font_size;
   mu_Color color = ctx->style->colors[MU_COLOR_TEXT];
   mu_layout_begin_column(ctx);
-  mu_layout_row(ctx, 1, &width, ctx->text_height(font));
+  mu_layout_row(ctx, 1, &width, ctx->text_height(font, font_size));
   do {
     mu_Rect r = mu_layout_next(ctx);
     int w = 0;
@@ -789,12 +825,12 @@ void mu_text(mu_Context *ctx, const char *text) {
     do {
       const char* word = p;
       while (*p && *p != ' ' && *p != '\n') { p++; }
-      w += ctx->text_width(font, word, p - word);
+      w += ctx->text_width(font, font_size, word, p - word);
       if (w > r.w && end != start) { break; }
-      w += ctx->text_width(font, p, 1);
+      w += ctx->text_width(font, font_size, p, 1);
       end = p++;
     } while (*end && *end != '\n');
-    mu_draw_text(ctx, font, start, end - start, mu_vec2(r.x, r.y), color);
+    mu_draw_text(ctx, font, font_size, start, end - start, mu_vec2(r.x, r.y), color);
     p = end + 1;
   } while (*end);
   mu_layout_end_column(ctx);
@@ -881,13 +917,14 @@ int mu_textbox_raw(mu_Context *ctx, char *buf, int bufsz, mu_Id id, mu_Rect r,
   if (ctx->focus == id) {
     mu_Color color = ctx->style->colors[MU_COLOR_TEXT];
     mu_Font font = ctx->style->font;
-    int textw = ctx->text_width(font, buf, -1);
-    int texth = ctx->text_height(font);
+    int font_size = ctx->style->font_size;
+    int textw = ctx->text_width(font, font_size, buf, -1);
+    int texth = ctx->text_height(font, font_size);
     int ofx = r.w - ctx->style->padding - textw - 1;
     int textx = r.x + mu_min(ofx, ctx->style->padding);
     int texty = r.y + (r.h - texth) / 2;
     mu_push_clip_rect(ctx, r);
-    mu_draw_text(ctx, font, buf, -1, mu_vec2(textx, texty), color);
+    mu_draw_text(ctx, font, font_size, buf, -1, mu_vec2(textx, texty), color);
     mu_draw_rect(ctx, mu_rect(textx + textw, texty, 1, texth), color);
     mu_pop_clip_rect(ctx);
   } else {
@@ -1247,7 +1284,9 @@ int mu_begin_window_ex(mu_Context *ctx, const char *title, mu_Rect rect, int opt
     body.h -= sz;
   }
 
-  /* do scrollbars and init clipping */
+  /* do scrollbars and init clipping.
+     Note: the scrollbars are drawn beneath the body.
+  */
   push_container_body(ctx, cnt, body, opt);
 
   /* resize to content size */

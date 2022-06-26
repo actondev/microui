@@ -119,7 +119,7 @@ enum {
 typedef struct mu_Context mu_Context;
 typedef unsigned mu_Id;
 typedef MU_REAL mu_Real;
-typedef void* mu_Font;
+typedef int mu_Font;
 
 typedef union { struct { int x, y; }; int data[2]; } mu_Vec2;
 typedef union { struct { int x, y, w, h; }; int data[4];} mu_Rect;
@@ -169,7 +169,21 @@ typedef struct {
 } mu_Container;
 
 typedef struct {
+  char close[5];
+  char resize[5];
+  char check[5];
+  char collapsed[5];
+  char expanded[5];
+  char max[5];
+} mu_IconsUtf8;
+
+typedef struct {
   mu_Font font;
+  int font_size;
+  mu_Font icon_font;
+  int icon_font_size;
+  mu_IconsUtf8 icons_utf8;
+
   mu_Vec2 size;
   int padding;
   int spacing;
@@ -185,8 +199,8 @@ struct mu_Context {
   vgir_ctx* vgir;
   vgir_jump_t vgir_begin;
   /* callbacks */
-  int (*text_width)(mu_Font font, const char *str, int len);
-  int (*text_height)(mu_Font font);
+  int (*text_width)(mu_Font font, int font_size, const char *str, int len);
+  int (*text_height)(mu_Font font, int font_size);
   void (*draw_frame)(mu_Context *ctx, mu_Rect rect, int colorid);
   /* core state */
   mu_Style _style;
@@ -264,7 +278,7 @@ int mu_next_command(mu_Context *ctx, mu_Command **cmd);
 void mu_set_clip(mu_Context *ctx, mu_Rect rect);
 void mu_draw_rect(mu_Context *ctx, mu_Rect rect, mu_Color color);
 void mu_draw_box(mu_Context *ctx, mu_Rect rect, mu_Color color);
-void mu_draw_text(mu_Context *ctx, mu_Font font, const char *str, int len, mu_Vec2 pos, mu_Color color);
+void mu_draw_text(mu_Context *ctx, mu_Font font, int size, const char *str, int len, mu_Vec2 pos, mu_Color color);
 void mu_draw_icon(mu_Context *ctx, int id, mu_Rect rect, mu_Color color);
 
 void mu_layout_row(mu_Context *ctx, int items, const int *widths, int height);
