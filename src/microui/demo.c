@@ -105,9 +105,9 @@ static void test_window(mu_Context *ctx) {
       mu_layout_row(ctx, 2, (const int[]) { 46, -1 }, 0);
       mu_Rect rect1 = mu_layout_next(ctx);
       mu_layout_set_next(ctx, rect1, 0);
-      mu_label(ctx, "Red:");   mu_slider(ctx, &mu_demo_bg[0], 0, 255);
-      mu_label(ctx, "Green:"); mu_slider(ctx, &mu_demo_bg[1], 0, 255);
-      mu_label(ctx, "Blue:");  mu_slider(ctx, &mu_demo_bg[2], 0, 255);
+      mu_label(ctx, "Red:");   mu_slider_float(ctx, &mu_demo_bg[0], 0, 255);
+      mu_label(ctx, "Green:"); mu_slider_float(ctx, &mu_demo_bg[1], 0, 255);
+      mu_label(ctx, "Blue:");  mu_slider_float(ctx, &mu_demo_bg[2], 0, 255);
       mu_Rect rect2 = mu_layout_next(ctx);
       mu_layout_set_next(ctx, rect2, 0);
       mu_layout_end_column(ctx);
@@ -175,7 +175,7 @@ static int uint8_slider(mu_Context *ctx, unsigned char *value, int low, int high
   static float tmp;
   mu_push_id(ctx, &value, sizeof(value));
   tmp = *value;
-  int res = mu_slider_ex(ctx, &tmp, low, high, 0, "%.0f", MU_OPT_ALIGNCENTER);
+  int res = mu_slider_float_ex(ctx, &tmp, low, high, 0, "%.0f", MU_OPT_ALIGNCENTER);
   *value = tmp;
   mu_pop_id(ctx);
   return res;
