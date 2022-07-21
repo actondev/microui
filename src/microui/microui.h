@@ -217,6 +217,7 @@ struct mu_Context {
   mu_Container *scroll_target;
   char number_edit_buf[MU_MAX_FMT];
   mu_Id number_edit;
+  mu_Vec2 viewport_size;
   /* stacks */
   mu_stack(char, MU_COMMANDLIST_SIZE) command_list;
   mu_stack(mu_Container*, MU_ROOTLIST_SIZE) root_list;
