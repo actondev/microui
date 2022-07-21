@@ -519,26 +519,20 @@ void mu_draw_rect(mu_Context *ctx, mu_Rect rect, mu_Color color) {
 
 
 void mu_draw_box(mu_Context *ctx, mu_Rect rect, mu_Color color) {
-  if(1 && ctx->vgir) {
+  if(ctx->vgir) {
     mu_Rect clip = mu_get_clip_rect(ctx);
     mu_Rect intersected = intersect_rects(rect, clip);
     if (intersected.w <= 0 || intersected.h <= 0) return;
 
     vgir_ctx* vgir = ctx->vgir;
     vgir_begin_path(vgir);
-    // TODO fix behavior: get prev_scissor & restore produces artifacts.
-    // push & pop works
-    /* vgir_rect_t prev_scissor = vgir_get_scissor(vgir); */
     vgir_push_scissor(vgir, clip.x, clip.y, clip.w, clip.h);
-
-    vgir_scissor(vgir, clip.x, clip.y, clip.w, clip.h);
     vgir_stroke_color(vgir, color.r/255.0, color.g/255.0, color.b/255.0, color.a/255.0);
     vgir_stroke_width(vgir, 1);
     vgir_rect(vgir, rect.x+0.5, rect.y+0.5, rect.w-1, rect.h-1);
     vgir_stroke(vgir);
 
     vgir_pop_scissor(vgir);
-    /* vgir_scissor(vgir, prev_scissor.x, prev_scissor.y, prev_scissor.w, prev_scissor.h); */
 
     return;
   }
