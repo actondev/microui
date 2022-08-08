@@ -275,7 +275,6 @@ void mu_input_text(mu_Context *ctx, const char *text);
 
 mu_Command* mu_push_command(mu_Context *ctx, int type, int size);
 int mu_next_command(mu_Context *ctx, mu_Command **cmd);
-void mu_set_clip(mu_Context *ctx, mu_Rect rect);
 void mu_draw_rect(mu_Context *ctx, mu_Rect rect, mu_Color color);
 void mu_draw_box(mu_Context *ctx, mu_Rect rect, mu_Color color);
 void mu_draw_text(mu_Context *ctx, mu_Font font, int size, const char *str, int len, mu_Vec2 pos, mu_Color color);

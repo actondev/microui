@@ -488,14 +488,20 @@ static mu_Command* push_jump(mu_Context *ctx, mu_Command *dst) {
 }
 
 
-void mu_set_clip(mu_Context *ctx, mu_Rect rect) {
+static void mu_push_clip_draw(mu_Context *ctx, mu_Rect rect) {
   if(ctx->vgir) {
-    vgir_scissor(ctx->vgir, rect.x, rect.y, rect.w, rect.h);
+    vgir_push_scissor(ctx->vgir, rect.x, rect.y, rect.w, rect.h);
     return;
   }
-  mu_Command *cmd;
-  cmd = mu_push_command(ctx, MU_COMMAND_CLIP, sizeof(mu_ClipCommand));
-  cmd->clip.rect = rect;
+  // TODO another stack than ctx->clip_stack ?
+}
+
+static void mu_pop_clip_draw(mu_Context *ctx) {
+  if(ctx->vgir) {
+    vgir_pop_scissor(ctx->vgir);
+    return;
+  }
+  // TODO another stack than ctx->clip_stack ?
 }
 
 
@@ -553,7 +559,7 @@ void mu_draw_text(mu_Context *ctx, mu_Font font, int font_size, const char *str,
   if (clipped == MU_CLIP_ALL ) { return; }
 
   if(ctx->vgir) vgir_begin_path(ctx->vgir); // before clipping!
-  if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
+  if (clipped == MU_CLIP_PART) { mu_push_clip_draw(ctx, mu_get_clip_rect(ctx)); }
 
   /* add command */
   if (len < 0) { len = strlen(str); }
@@ -575,7 +581,7 @@ void mu_draw_text(mu_Context *ctx, mu_Font font, int font_size, const char *str,
     cmd->text.font = font;
   }
   /* reset clipping if it was set */
-  if (clipped) { mu_set_clip(ctx, unclipped_rect); }
+  if (clipped) { mu_pop_clip_draw(ctx); }
 }
 
 
@@ -584,7 +590,7 @@ void mu_draw_icon(mu_Context *ctx, int id, mu_Rect rect, mu_Color color) {
   /* do clip command if the rect isn't fully contained within the cliprect */
   int clipped = mu_check_clip(ctx, rect);
   if (clipped == MU_CLIP_ALL ) { return; }
-  if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
+  if (clipped == MU_CLIP_PART) { mu_push_clip_draw(ctx, mu_get_clip_rect(ctx)); }
   /* do icon command */
   if(ctx->vgir) {
     const char* text = NULL;
@@ -620,7 +626,7 @@ void mu_draw_icon(mu_Context *ctx, int id, mu_Rect rect, mu_Color color) {
     cmd->icon.color = color;
   }
   /* reset clipping if it was set */
-  if (clipped) { mu_set_clip(ctx, unclipped_rect); }
+  if (clipped) { mu_pop_clip_draw(ctx); }
 }
 
 
