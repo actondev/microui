@@ -535,7 +535,7 @@ void mu_draw_box(mu_Context *ctx, mu_Rect rect, mu_Color color) {
     vgir_push_scissor(vgir, clip.x, clip.y, clip.w, clip.h);
     vgir_stroke_color(vgir, color.r/255.0, color.g/255.0, color.b/255.0, color.a/255.0);
     vgir_stroke_width(vgir, 1);
-    vgir_rect(vgir, rect.x+0.5, rect.y+0.5, rect.w-1, rect.h-1);
+    vgir_rect(vgir, rect.x, rect.y, rect.w, rect.h);
     vgir_stroke(vgir);
 
     vgir_pop_scissor(vgir);
