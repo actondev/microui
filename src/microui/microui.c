@@ -151,9 +151,6 @@ void mu_set_vgir(mu_Context *ctx, vgir_ctx *vgir) {
 
 
 void mu_begin(mu_Context *ctx) {
-  if(ctx->vgir) {
-    ctx->vgir_begin = vgir_store_jump_src(ctx->vgir);
-  }
   expect(ctx->text_width && ctx->text_height);
   ctx->command_list.idx = 0;
   ctx->root_list.idx = 0;
@@ -206,6 +203,7 @@ void mu_end(mu_Context *ctx) {
 
   /* sort root containers by zindex */
   n = ctx->root_list.idx;
+  if(!n) return;
   qsort(ctx->root_list.items, n, sizeof(mu_Container*), compare_zindex);
 
   /* set root container jump commands */
@@ -227,17 +225,15 @@ void mu_end(mu_Context *ctx) {
   }
   if(ctx->vgir) {
     vgir_ctx *vgir = ctx->vgir;
-    vgir_jump_t begin = ctx->vgir_begin;
     mu_Container *first = ctx->root_list.items[0];
-    vgir_set_jump_dst(vgir, begin, first->vgir_head);
+    vgir_set_jump_dst(vgir, ctx->vgir_begin, first->vgir_head);
     for(i=0; i < n-1; i++ ) {
       mu_Container *current = ctx->root_list.items[i];
       mu_Container *next = ctx->root_list.items[i+1];
       vgir_set_jump_dst(vgir, current->vgir_tail, next->vgir_head);
     }
-    vgir_jump_t end = vgir_store_jump_src(vgir);
     mu_Container *last = ctx->root_list.items[n - 1];
-    vgir_set_jump_dst(vgir, last->vgir_tail, end);
+    vgir_set_jump_dst(vgir, last->vgir_tail, ctx->vgir_end);
   }
 }
 
@@ -1150,6 +1146,10 @@ static void begin_root_container(mu_Context *ctx, mu_Container *cnt) {
   push(ctx->root_list, cnt);
   cnt->head = push_jump(ctx, NULL);
   if(ctx->vgir) {
+    if(ctx->root_list.idx == 1) {
+      // first window (from code / not z-index)
+      ctx->vgir_begin = vgir_store_jump_src(ctx->vgir);
+    }
     cnt->vgir_head = vgir_store_jump_src(ctx->vgir);
   }
   /* set as hover root if the mouse is overlapping this container and it has a
@@ -1173,6 +1173,7 @@ static void end_root_container(mu_Context *ctx) {
   cnt->tail = push_jump(ctx, NULL);
   if (ctx->vgir) {
     cnt->vgir_tail = vgir_store_jump_src(ctx->vgir);
+    ctx->vgir_end = vgir_store_jump_src(ctx->vgir); // 1 past the window end
   }
   cnt->head->jump.dst = ctx->command_list.items + ctx->command_list.idx;
   /* pop base clip rect and container */

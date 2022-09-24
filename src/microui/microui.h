@@ -197,7 +197,7 @@ typedef struct {
 
 struct mu_Context {
   vgir_ctx* vgir;
-  vgir_jump_t vgir_begin;
+  vgir_jump_t vgir_begin, vgir_end;
   /* callbacks */
   int (*text_width)(mu_Font font, int font_size, const char *str, int len);
   int (*text_height)(mu_Font font, int font_size);
