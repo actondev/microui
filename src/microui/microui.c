@@ -326,6 +326,9 @@ static void pop_container(mu_Context *ctx) {
   pop(ctx->container_stack);
   pop(ctx->layout_stack);
   mu_pop_id(ctx);
+  if(ctx->vgir) {
+    vgir_pop_scissor(ctx->vgir);
+  }
 }
 
 
@@ -528,14 +531,10 @@ void mu_draw_box(mu_Context *ctx, mu_Rect rect, mu_Color color) {
 
     vgir_ctx* vgir = ctx->vgir;
     vgir_begin_path(vgir);
-    vgir_push_scissor(vgir, clip.x, clip.y, clip.w, clip.h);
     vgir_stroke_color(vgir, color.r/255.0, color.g/255.0, color.b/255.0, color.a/255.0);
     vgir_stroke_width(vgir, 1);
     vgir_rect(vgir, rect.x, rect.y, rect.w, rect.h);
     vgir_stroke(vgir);
-
-    vgir_pop_scissor(vgir);
-
     return;
   }
   mu_draw_rect(ctx, mu_rect(rect.x + 1, rect.y, rect.w - 2, 1), color);
@@ -577,7 +576,7 @@ void mu_draw_text(mu_Context *ctx, mu_Font font, int font_size, const char *str,
     cmd->text.font = font;
   }
   /* reset clipping if it was set */
-  if (clipped) { mu_pop_clip_draw(ctx); }
+  if (clipped == MU_CLIP_PART) { mu_pop_clip_draw(ctx); }
 }
 
 
@@ -622,7 +621,7 @@ void mu_draw_icon(mu_Context *ctx, int id, mu_Rect rect, mu_Color color) {
     cmd->icon.color = color;
   }
   /* reset clipping if it was set */
-  if (clipped) { mu_pop_clip_draw(ctx); }
+  if (clipped == MU_CLIP_PART) { mu_pop_clip_draw(ctx); }
 }
 
 
@@ -1137,6 +1136,9 @@ static void push_container_body(
   if (~opt & MU_OPT_NOSCROLL) { scrollbars(ctx, cnt, &body); }
   push_layout(ctx, expand_rect(body, -ctx->style->padding), cnt->scroll);
   cnt->body = body;
+  if(ctx->vgir) {
+    vgir_push_scissor(ctx->vgir, cnt->body.x, cnt->body.y, cnt->body.w, cnt->body.h);
+  }
 }
 
 
@@ -1171,14 +1173,14 @@ static void end_root_container(mu_Context *ctx) {
   ** on initing these are done in mu_end() */
   mu_Container *cnt = mu_get_current_container(ctx);
   cnt->tail = push_jump(ctx, NULL);
-  if (ctx->vgir) {
-    cnt->vgir_tail = vgir_store_jump_src(ctx->vgir);
-    ctx->vgir_end = vgir_store_jump_src(ctx->vgir); // 1 past the window end
-  }
   cnt->head->jump.dst = ctx->command_list.items + ctx->command_list.idx;
   /* pop base clip rect and container */
   mu_pop_clip_rect(ctx);
   pop_container(ctx);
+  if (ctx->vgir) {
+    cnt->vgir_tail = vgir_store_jump_src(ctx->vgir);
+    ctx->vgir_end = vgir_store_jump_src(ctx->vgir); // 1 past the window end
+  }
 }
 
 
