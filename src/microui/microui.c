@@ -559,6 +559,7 @@ void mu_draw_text(mu_Context *ctx, mu_Font font, int font_size, const char *str,
   /* add command */
   if (len < 0) { len = strlen(str); }
   if(ctx->vgir) {
+    vgir_begin_path(ctx->vgir);
     vgir_ctx *vgir = ctx->vgir;
     vgir_font_face_id(vgir, font);
     vgir_font_size(vgir, font_size);
@@ -567,6 +568,7 @@ void mu_draw_text(mu_Context *ctx, mu_Font font, int font_size, const char *str,
     const char *end = str + len;
     vgir_text_align(vgir, LEFT | TOP);
     vgir_text(vgir, pos.x, pos.y, str, end);
+    vgir_fill(vgir);
   } else {
     cmd = mu_push_command(ctx, MU_COMMAND_TEXT, sizeof(mu_TextCommand) + len);
     memcpy(cmd->text.str, str, len);
