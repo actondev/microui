@@ -60,8 +60,8 @@ static mu_Style default_style = {
   -1, /* icon_font */
   12, /* icon_font_size */
   {{0}, {0}, {0}, {0}, {0}, {0}}, /* icons_utf8 */
-  {{ 68, 10 }}, /* size */
-  6, 4, 24,   /* padding, spacing, indent */
+  {{ 68, 44 }}, /* size */
+  0, 10, 24,   /* padding, spacing, indent */
   24, 20,     /* title_height, footer_height */
   12, 8,      /* scrollbar_size, thumb_size */
   {
@@ -320,8 +320,8 @@ mu_Layout* mu_get_layout(mu_Context *ctx) {
 static void pop_container(mu_Context *ctx) {
   mu_Container *cnt = mu_get_current_container(ctx);
   mu_Layout *layout = mu_get_layout(ctx);
-  cnt->content_size.x = layout->max.x - layout->body.x;
-  cnt->content_size.y = layout->max.y - layout->body.y;
+  cnt->content_size.x = layout->max.x - layout->body.x + ctx->style->spacing;
+  cnt->content_size.y = layout->max.y - layout->body.y + ctx->style->spacing;
   /* pop container, layout and id */
   pop(ctx->container_stack);
   pop(ctx->layout_stack);
@@ -692,7 +692,9 @@ mu_Rect mu_layout_next(mu_Context *ctx) {
     int type = layout->next_type;
     layout->next_type = 0;
     res = layout->next;
-    if (type == ABSOLUTE) { return (ctx->last_rect = res); }
+    if (type == ABSOLUTE) {
+      return (ctx->last_rect = res);
+    }
 
   } else {
     /* handle next row */
@@ -701,22 +703,26 @@ mu_Rect mu_layout_next(mu_Context *ctx) {
     }
 
     /* position */
-    res.x = layout->position.x;
-    res.y = layout->position.y;
+    res.x = layout->position.x + style->spacing;
+    res.y = layout->position.y + style->spacing;
 
     /* size */
+    // Note: if layout items are set (ie their widths), this width includes padding
     res.w = layout->items > 0 ? layout->widths[layout->item_index] : layout->size.x;
     res.h = layout->size.y;
     if (res.w == 0) { res.w = style->size.x + style->padding * 2; }
     if (res.h == 0) { res.h = style->size.y + style->padding * 2; }
     if (res.w <  0) { res.w += layout->body.w - res.x + 1; }
     if (res.h <  0) { res.h += layout->body.h - res.y + 1; }
+    // subtracting spacing: it's taken into account (margin-box box model)
+    res.w -= style->spacing*2;
+    res.h -= style->spacing*2;
 
     layout->item_index++;
   }
 
   /* update position */
-  layout->position.x += res.w + style->spacing;
+  layout->position.x += res.w + style->spacing*2;
   layout->next_row = mu_max(layout->next_row, res.y + res.h + style->spacing);
 
   /* apply body offset */
