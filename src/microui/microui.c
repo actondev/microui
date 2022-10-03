@@ -24,7 +24,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "microui.h"
-#include <vgir/vgir.h>
 #include <assert.h>
 
 #define unused(x) ((void) (x))
@@ -184,7 +183,7 @@ void mu_end(mu_Context *ctx) {
 
   /* unset focus if focus id was not touched this frame */
   if (!ctx->updated_focus) { ctx->focus = 0; }
-  ctx->updated_focus = 0;
+  ctx->updated_focus = false;
 
   /* bring hover root to front if mouse was pressed */
   if (ctx->mouse_pressed && ctx->next_hover_root &&
@@ -240,7 +239,7 @@ void mu_end(mu_Context *ctx) {
 
 void mu_set_focus(mu_Context *ctx, mu_Id id) {
   ctx->focus = id;
-  ctx->updated_focus = 1;
+  ctx->updated_focus = true;
 }
 
 
@@ -794,7 +793,7 @@ int mu_mouse_over(mu_Context *ctx, mu_Rect rect) {
 void mu_update_control(mu_Context *ctx, mu_Id id, mu_Rect rect, int opt) {
   int mouseover = mu_mouse_over(ctx, rect);
 
-  if (ctx->focus == id) { ctx->updated_focus = 1; }
+  if (ctx->focus == id) { ctx->updated_focus = true; }
   if (opt & MU_OPT_NOINTERACT) { return; }
   if (mouseover && !ctx->mouse_down) { ctx->hover = id; }
 
@@ -1029,7 +1028,7 @@ static int header(mu_Context *ctx, const char *label, int istreenode, int opt) {
   /* update pool ref */
   if (idx >= 0) {
     if (active) { mu_pool_update(ctx, ctx->treenode_pool, idx); }
-           else { memset(&ctx->treenode_pool[idx], 0, sizeof(mu_PoolItem)); }
+    else { memset(&ctx->treenode_pool[idx], 0, sizeof(mu_PoolItem)); }
   } else if (active) {
     mu_pool_init(ctx, ctx->treenode_pool, MU_TREENODEPOOL_SIZE, id);
   }

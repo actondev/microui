@@ -8,7 +8,8 @@
 #ifndef MICROUI_H
 #define MICROUI_H
 
-#include <vgir/vgir.h>
+#include <stdbool.h>
+#include <aod/vgir.h>
 
 #define MU_VERSION "2.01"
 
@@ -210,7 +211,7 @@ struct mu_Context {
   mu_Id last_id;
   mu_Rect last_rect;
   int last_zindex;
-  int updated_focus;
+  bool updated_focus;
   int frame;
   mu_Container *hover_root;
   mu_Container *next_hover_root;
