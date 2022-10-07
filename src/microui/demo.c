@@ -158,7 +158,7 @@ static void log_window(mu_Context *ctx) {
     int submitted = 0;
     mu_layout_row(ctx, 2, (const int[]) { -70, -1 }, 0);
     if (mu_textbox(ctx, buf, sizeof(buf)) & MU_RES_SUBMIT) {
-      mu_set_focus(ctx, ctx->last_id);
+      mu_set_focus(ctx, ctx->cur_id);
       submitted = 1;
     }
     if (mu_button(ctx, "Submit")) { submitted = 1; }

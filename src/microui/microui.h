@@ -67,6 +67,7 @@ enum {
   MU_COLOR_BASEFOCUS,
   MU_COLOR_SCROLLBASE,
   MU_COLOR_SCROLLTHUMB,
+  MU_COLOR_FOCUS_BORDER,
   MU_COLOR_MAX
 };
 
@@ -113,7 +114,8 @@ enum {
   MU_KEY_CTRL         = (1 << 1),
   MU_KEY_ALT          = (1 << 2),
   MU_KEY_BACKSPACE    = (1 << 3),
-  MU_KEY_RETURN       = (1 << 4)
+  MU_KEY_RETURN       = (1 << 4),
+  MU_KEY_TAB          = (1 << 5),
 };
 
 
@@ -208,7 +210,10 @@ struct mu_Context {
   mu_Style *style;
   mu_Id hover;
   mu_Id focus;
-  mu_Id last_id;
+  mu_Id last_focus;
+  bool should_focus_next;
+  mu_Id prev_id;
+  mu_Id cur_id;
   mu_Rect last_rect;
   int last_zindex;
   bool updated_focus;
@@ -235,6 +240,7 @@ struct mu_Context {
   mu_Vec2 mouse_delta;
   mu_Vec2 scroll_delta;
   int mouse_down;
+  /// Delta: was mouse pressed (not pressed -> pressed) in THIS frame
   int mouse_pressed;
   int key_down;
   int key_pressed;
