@@ -1,9 +1,9 @@
-project('microui', 'c')
+project('microui', 'cpp')
 
-src = files('src/microui/microui.c')
+src = files('src/microui/microui.cpp')
 
 if get_option('demo')
-  src += files('src/microui/demo.c')
+  src += files('src/microui/demo.cpp')
 endif
 
 microui = library('microui',

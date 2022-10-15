@@ -23,7 +23,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "microui.h"
+#include "microui.hpp"
 #include <assert.h>
 
 #define unused(x) ((void) (x))
@@ -250,7 +250,7 @@ void mu_set_focus(mu_Context *ctx, mu_Id id) {
 #define HASH_INITIAL 2166136261
 
 static void hash(mu_Id *hash, const void *data, int size) {
-  const unsigned char *p = data;
+  const unsigned char *p = (unsigned char*)data;
   while (size--) {
     *hash = (*hash ^ *p++) * 16777619;
   }
@@ -476,7 +476,7 @@ int mu_next_command(mu_Context *ctx, mu_Command **cmd) {
   }
   while ((char*) *cmd != ctx->command_list.items + ctx->command_list.idx) {
     if ((*cmd)->type != MU_COMMAND_JUMP) { return 1; }
-    *cmd = (*cmd)->jump.dst;
+    *cmd = (mu_Command*)(*cmd)->jump.dst;
   }
   return 0;
 }
@@ -569,7 +569,7 @@ void mu_draw_text(mu_Context *ctx, mu_Font font, int font_size, const char *str,
     vgir_fill_color(ctx->vgir, color.r / 255.0, color.g / 255.0,
                     color.b / 255.0, color.a / 255.0);
     const char *end = str + len;
-    vgir_text_align(vgir, LEFT | TOP);
+    vgir_text_align(vgir, (vgir_align) (LEFT | TOP));
     vgir_text(vgir, pos.x, pos.y, str, end);
     vgir_fill(vgir);
   } else {
@@ -1227,6 +1227,7 @@ static void end_root_container(mu_Context *ctx) {
 }
 
 
+// TODO pass bool pointer for window open
 int mu_begin_window_ex(mu_Context *ctx, const char *title, mu_Rect rect, int opt) {
   mu_Rect body, titlerect, footer_rect;
   mu_Id id = mu_get_id(ctx, title, strlen(title));
