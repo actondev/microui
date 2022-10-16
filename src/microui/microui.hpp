@@ -9,9 +9,13 @@
 
 #include <stdbool.h>
 #include <aod/vgir.h>
+#include <stack>
+#include <vector>
 
 
 #define MU_VERSION "2.01"
+
+#define MU_COMMANDS 0 // deprecated in favor of just using vgir
 
 #define MU_COMMANDLIST_SIZE     (256 * 1024)
 #define MU_ROOTLIST_SIZE        32
@@ -206,29 +210,31 @@ struct mu_Context {
   void (*draw_frame)(mu_Context *ctx, mu_Rect rect, int colorid);
   /* core state */
   mu_Style _style;
-  mu_Style *style;
-  mu_Id hover;
-  mu_Id focus;
-  mu_Id last_focus;
-  bool should_focus_next;
-  mu_Id prev_id;
-  mu_Id cur_id;
+  mu_Style *style{nullptr};
+  mu_Id hover{0};
+  mu_Id focus{0};
+  mu_Id last_focus{0};
+  bool should_focus_next{false};
+  mu_Id prev_id{0};
+  mu_Id cur_id{0};
   mu_Rect last_rect;
-  int last_zindex;
-  bool updated_focus;
-  int frame;
-  mu_Container *hover_root;
-  mu_Container *next_hover_root;
-  mu_Container *scroll_target;
+  int last_zindex{0};
+  bool updated_focus{false};
+  int frame{0};
+  mu_Container *hover_root{nullptr};
+  mu_Container *next_hover_root{nullptr};
+  mu_Container *scroll_target{nullptr};
   char number_edit_buf[MU_MAX_FMT];
-  mu_Id number_edit;
+  mu_Id number_edit{0};
   /* stacks */
-  mu_stack(char, MU_COMMANDLIST_SIZE) command_list;
-  mu_stack(mu_Container*, MU_ROOTLIST_SIZE) root_list;
-  mu_stack(mu_Container*, MU_CONTAINERSTACK_SIZE) container_stack;
-  mu_stack(mu_Rect, MU_CLIPSTACK_SIZE) clip_stack;
-  mu_stack(mu_Id, MU_IDSTACK_SIZE) id_stack;
-  mu_stack(mu_Layout, MU_LAYOUTSTACK_SIZE) layout_stack;
+#if MU_COMMANDS
+  std::vector<char> command_list;
+#endif
+  std::vector<mu_Container*> root_list;
+  std::vector<mu_Container*> container_stack;
+  std::vector<mu_Rect> clip_stack;
+  std::vector<mu_Id> id_stack;
+  std::vector<mu_Layout> layout_stack;
   /* retained state pools */
   mu_PoolItem container_pool[MU_CONTAINERPOOL_SIZE];
   mu_Container containers[MU_CONTAINERPOOL_SIZE];
@@ -238,12 +244,30 @@ struct mu_Context {
   mu_Vec2 last_mouse_pos;
   mu_Vec2 mouse_delta;
   mu_Vec2 scroll_delta;
-  int mouse_down;
+  int mouse_down{0};
   /// Delta: was mouse pressed (not pressed -> pressed) in THIS frame
-  int mouse_pressed;
-  int key_down;
-  int key_pressed;
+  int mouse_pressed{0};
+  int key_down{0};
+  int key_pressed{0};
   char input_text[32];
+
+  // mouse hover stack
+  std::vector<mu_Id> hover_stack;
+  // containes the current or last focus element stack (might be from
+  // clicking an element or by tabbing to cycle through elements)
+  std::vector<mu_Id> focus_stack;
+  // the current element stack
+
+  mu_Context() {
+#if MU_COMMANDS
+    command_list.reserve(MU_COMMANDLIST_SIZE);
+#endif
+    root_list.reserve(MU_ROOTLIST_SIZE);
+    container_stack.reserve(MU_CONTAINERSTACK_SIZE);
+    clip_stack.reserve(MU_CLIPSTACK_SIZE);
+    id_stack.reserve(MU_IDSTACK_SIZE);
+    layout_stack.reserve(MU_LAYOUTSTACK_SIZE);
+  }
 };
 
 
@@ -257,6 +281,7 @@ void mu_begin(mu_Context *ctx);
 void mu_end(mu_Context *ctx);
 void mu_set_focus(mu_Context *ctx, mu_Id id);
 mu_Id mu_get_id(mu_Context *ctx, const void *data, int size);
+void mu_push_id(mu_Context *ctx, mu_Id id);
 void mu_push_id(mu_Context *ctx, const void *data, int size);
 void mu_pop_id(mu_Context *ctx);
 void mu_push_clip_rect(mu_Context *ctx, mu_Rect rect);

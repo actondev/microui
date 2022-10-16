@@ -25,6 +25,7 @@
 #include <string.h>
 #include "microui.hpp"
 #include <assert.h>
+#include <algorithm>
 
 #define unused(x) ((void) (x))
 
@@ -36,16 +37,21 @@
     }                                                                \
   } while (0)
 
-#define push(stk, val) do {                                                 \
-    expect((stk).idx < (int) (sizeof((stk).items) / sizeof(*(stk).items))); \
-    (stk).items[(stk).idx] = (val);                                         \
-    (stk).idx++; /* incremented after incase `val` uses this value */       \
-  } while (0)
+template <typename T>
+inline void push(std::vector<T> &stk, T &&val) {
+  stk.push_back(val);
+}
 
-#define pop(stk) do {      \
-    expect((stk).idx > 0); \
-    (stk).idx--;           \
-  } while (0)
+template <typename T>
+inline void push(std::vector<T> &stk, const T &val) {
+  stk.push_back(val);
+}
+
+template <typename T>
+inline void pop(std::vector<T> &stk) {
+  assert(!stk.empty());
+  stk.pop_back();
+}
 
 
 static mu_Rect unclipped_rect = {{ 0, 0, 0x1000000, 0x1000000 }};
@@ -138,8 +144,7 @@ static void draw_frame(mu_Context *ctx, mu_Rect rect, int colorid) {
 }
 
 void mu_init(mu_Context *ctx) {
-  memset(ctx, 0, sizeof(*ctx));
-  ctx->vgir = NULL;
+  ctx->vgir = nullptr;
   ctx->draw_frame = draw_frame;
   ctx->_style = default_style;
   ctx->style = &ctx->_style;
@@ -153,29 +158,25 @@ void mu_set_vgir(mu_Context *ctx, vgir_ctx *vgir) {
 
 void mu_begin(mu_Context *ctx) {
   expect(ctx->text_width && ctx->text_height);
-  ctx->command_list.idx = 0;
-  ctx->root_list.idx = 0;
-  ctx->scroll_target = NULL;
+#if MU_COMMANDS
+  ctx->command_list.clear();
+#endif
+  ctx->root_list.clear();
+  ctx->scroll_target = nullptr;
   ctx->hover_root = ctx->next_hover_root;
-  ctx->next_hover_root = NULL;
+  ctx->next_hover_root = nullptr;
   ctx->mouse_delta.x = ctx->mouse_pos.x - ctx->last_mouse_pos.x;
   ctx->mouse_delta.y = ctx->mouse_pos.y - ctx->last_mouse_pos.y;
   ctx->frame++;
 }
 
-
-static int compare_zindex(const void *a, const void *b) {
-  return (*(mu_Container**) a)->zindex - (*(mu_Container**) b)->zindex;
-}
-
-
 void mu_end(mu_Context *ctx) {
   int i, n;
   /* check stacks */
-  expect(ctx->container_stack.idx == 0);
-  expect(ctx->clip_stack.idx      == 0);
-  expect(ctx->id_stack.idx        == 0);
-  expect(ctx->layout_stack.idx    == 0);
+  assert(ctx->container_stack.empty());
+  expect(ctx->clip_stack.empty());
+  expect(ctx->id_stack.empty());
+  expect(ctx->layout_stack.empty());
 
   /* handle scroll input */
   if (ctx->scroll_target) {
@@ -203,20 +204,24 @@ void mu_end(mu_Context *ctx) {
   ctx->last_mouse_pos = ctx->mouse_pos;
 
   /* sort root containers by zindex */
-  n = ctx->root_list.idx;
+  n = ctx->root_list.size();
   if(!n) return;
-  qsort(ctx->root_list.items, n, sizeof(mu_Container*), compare_zindex);
+  // qsort(ctx->root_list.items, n, sizeof(mu_Container*), compare_zindex);
+  std::sort(ctx->root_list.begin(), ctx->root_list.end(), [&](const auto a, const auto b) {
+      return a->zindex < b->zindex;
+    });
 
+  #if MU_COMMANDS
   /* set root container jump commands */
   for (i = 0; i < n; i++) {
-    mu_Container *cnt = ctx->root_list.items[i];
+    mu_Container *cnt = ctx->root_list[i];
     /* if this is the first container then make the first command jump to it.
     ** otherwise set the previous container's tail to jump to this one */
     if (i == 0) {
       mu_Command *cmd = (mu_Command*) ctx->command_list.items;
       cmd->jump.dst = (char*) cnt->head + sizeof(mu_JumpCommand);
     } else {
-      mu_Container *prev = ctx->root_list.items[i - 1];
+      mu_Container *prev = ctx->root_list[i - 1];
       prev->tail->jump.dst = (char*) cnt->head + sizeof(mu_JumpCommand);
     }
     /* make the last container's tail jump to the end of command list */
@@ -224,16 +229,17 @@ void mu_end(mu_Context *ctx) {
       cnt->tail->jump.dst = ctx->command_list.items + ctx->command_list.idx;
     }
   }
+  #endif
   if(ctx->vgir) {
     vgir_ctx *vgir = ctx->vgir;
-    mu_Container *first = ctx->root_list.items[0];
+    mu_Container *first = ctx->root_list[0];
     vgir_set_jump_dst(vgir, ctx->vgir_begin, first->vgir_head);
     for(i=0; i < n-1; i++ ) {
-      mu_Container *current = ctx->root_list.items[i];
-      mu_Container *next = ctx->root_list.items[i+1];
+      mu_Container *current = ctx->root_list[i];
+      mu_Container *next = ctx->root_list[i+1];
       vgir_set_jump_dst(vgir, current->vgir_tail, next->vgir_head);
     }
-    mu_Container *last = ctx->root_list.items[n - 1];
+    mu_Container *last = ctx->root_list[n - 1];
     vgir_set_jump_dst(vgir, last->vgir_tail, ctx->vgir_end);
   }
 }
@@ -258,8 +264,8 @@ static void hash(mu_Id *hash, const void *data, int size) {
 
 
 mu_Id mu_get_id(mu_Context *ctx, const void *data, int size) {
-  int idx = ctx->id_stack.idx;
-  mu_Id res = (idx > 0) ? ctx->id_stack.items[idx - 1] : HASH_INITIAL;
+  int idx = ctx->id_stack.size();
+  mu_Id res = (idx > 0) ? ctx->id_stack[idx - 1] : HASH_INITIAL;
   hash(&res, data, size);
   ctx->prev_id = ctx->cur_id;
   ctx->cur_id = res;
@@ -267,8 +273,12 @@ mu_Id mu_get_id(mu_Context *ctx, const void *data, int size) {
 }
 
 
+void mu_push_id(mu_Context *ctx, mu_Id id) {
+  push(ctx->id_stack, id);
+}
+
 void mu_push_id(mu_Context *ctx, const void *data, int size) {
-  push(ctx->id_stack, mu_get_id(ctx, data, size));
+  mu_push_id(ctx, mu_get_id(ctx, data, size));
 }
 
 
@@ -289,8 +299,8 @@ void mu_pop_clip_rect(mu_Context *ctx) {
 
 
 mu_Rect mu_get_clip_rect(mu_Context *ctx) {
-  expect(ctx->clip_stack.idx > 0);
-  return ctx->clip_stack.items[ctx->clip_stack.idx - 1];
+  expect(!ctx->clip_stack.empty());
+  return ctx->clip_stack.back();
 }
 
 
@@ -315,8 +325,9 @@ static void push_layout(mu_Context *ctx, mu_Rect body, mu_Vec2 scroll) {
 }
 
 
+// TODO if layout_stack gets resized, we'll have an invalid pointer
 mu_Layout* mu_get_layout(mu_Context *ctx) {
-  return &ctx->layout_stack.items[ctx->layout_stack.idx - 1];
+  return &ctx->layout_stack.back();
 }
 
 
@@ -336,8 +347,8 @@ static void pop_container(mu_Context *ctx) {
 
 
 mu_Container* mu_get_current_container(mu_Context *ctx) {
-  expect(ctx->container_stack.idx > 0);
-  return ctx->container_stack.items[ ctx->container_stack.idx - 1 ];
+  expect(!ctx->container_stack.empty());
+  return ctx->container_stack.back();
 }
 
 
@@ -351,7 +362,7 @@ static mu_Container* get_container(mu_Context *ctx, mu_Id id, int opt) {
     }
     return &ctx->containers[idx];
   }
-  if (opt & MU_OPT_CLOSED) { return NULL; }
+  if (opt & MU_OPT_CLOSED) { return nullptr; }
   /* container not found in pool: init new container */
   idx = mu_pool_init(ctx, ctx->container_pool, MU_CONTAINERPOOL_SIZE, id);
   cnt = &ctx->containers[idx];
@@ -459,34 +470,25 @@ void mu_input_text(mu_Context *ctx, const char *text) {
 **============================================================================*/
 
 mu_Command* mu_push_command(mu_Context *ctx, int type, int size) {
-  mu_Command *cmd = (mu_Command*) (ctx->command_list.items + ctx->command_list.idx);
+  #if MU_COMMANDS
+  mu_Command *cmd = (mu_Command*) (ctx->command_list.back());
   expect(ctx->command_list.idx + size < MU_COMMANDLIST_SIZE);
   cmd->base.type = type;
   cmd->base.size = size;
   ctx->command_list.idx += size;
   return cmd;
+  #endif
+  return nullptr;
 }
-
-
-int mu_next_command(mu_Context *ctx, mu_Command **cmd) {
-  if (*cmd) {
-    *cmd = (mu_Command*) (((char*) *cmd) + (*cmd)->base.size);
-  } else {
-    *cmd = (mu_Command*) ctx->command_list.items;
-  }
-  while ((char*) *cmd != ctx->command_list.items + ctx->command_list.idx) {
-    if ((*cmd)->type != MU_COMMAND_JUMP) { return 1; }
-    *cmd = (mu_Command*)(*cmd)->jump.dst;
-  }
-  return 0;
-}
-
 
 static mu_Command* push_jump(mu_Context *ctx, mu_Command *dst) {
+  #if MU_COMMANDS
   mu_Command *cmd;
   cmd = mu_push_command(ctx, MU_COMMAND_JUMP, sizeof(mu_JumpCommand));
   cmd->jump.dst = dst;
   return cmd;
+  #endif
+  return nullptr;
 }
 
 
@@ -593,7 +595,7 @@ void mu_draw_icon(mu_Context *ctx, int id, mu_Rect rect, mu_Color color) {
   if (clipped == MU_CLIP_PART) { mu_push_clip_draw(ctx, mu_get_clip_rect(ctx)); }
   /* do icon command */
   if(ctx->vgir) {
-    const char* text = NULL;
+    const char* text = nullptr;
     switch(id) {
       case MU_ICON_CLOSE:
         text = ctx->style->icons_utf8.close;
@@ -702,7 +704,7 @@ mu_Rect mu_layout_next(mu_Context *ctx) {
   } else {
     /* handle next row */
     if (layout->item_index == layout->items) {
-      mu_layout_row(ctx, layout->items, NULL, layout->size.y);
+      mu_layout_row(ctx, layout->items, nullptr, layout->size.y);
     }
 
     /* position */
@@ -745,12 +747,12 @@ mu_Rect mu_layout_next(mu_Context *ctx) {
 **============================================================================*/
 
 static int in_hover_root(mu_Context *ctx) {
-  int i = ctx->container_stack.idx;
+  int i = ctx->container_stack.size();
   while (i--) {
-    if (ctx->container_stack.items[i] == ctx->hover_root) { return 1; }
+    if (ctx->container_stack[i] == ctx->hover_root) { return 1; }
     /* only root containers have their `head` field set; stop searching if we've
     ** reached the current root container */
-    if (ctx->container_stack.items[i]->head) { break; }
+    if (ctx->container_stack[i]->head) { break; }
   }
   return 0;
 }
@@ -978,7 +980,7 @@ static int number_textbox(mu_Context *ctx, mu_Real *value, mu_Rect r, mu_Id id) 
     int res = mu_textbox_raw(
       ctx, ctx->number_edit_buf, sizeof(ctx->number_edit_buf), id, r, 0);
     if (res & MU_RES_SUBMIT || ctx->focus != id) {
-      *value = strtod(ctx->number_edit_buf, NULL);
+      *value = strtod(ctx->number_edit_buf, nullptr);
       ctx->number_edit = 0;
     } else {
       return 1;
@@ -1189,9 +1191,9 @@ static void begin_root_container(mu_Context *ctx, mu_Container *cnt) {
   push(ctx->container_stack, cnt);
   /* push container to roots list and push head command */
   push(ctx->root_list, cnt);
-  cnt->head = push_jump(ctx, NULL);
+  cnt->head = push_jump(ctx, nullptr);
   if(ctx->vgir) {
-    if(ctx->root_list.idx == 1) {
+    if(ctx->root_list.size() == 1) {
       // first window (from code / not z-index)
       ctx->vgir_begin = vgir_store_jump_src(ctx->vgir);
     }
@@ -1215,8 +1217,10 @@ static void end_root_container(mu_Context *ctx) {
   /* push tail 'goto' jump command and set head 'skip' command. the final steps
   ** on initing these are done in mu_end() */
   mu_Container *cnt = mu_get_current_container(ctx);
-  cnt->tail = push_jump(ctx, NULL);
+  #if MU_COMMANDS
+  cnt->tail = push_jump(ctx, nullptr);
   cnt->head->jump.dst = ctx->command_list.items + ctx->command_list.idx;
+  #endif
   /* pop base clip rect and container */
   mu_pop_clip_rect(ctx);
   pop_container(ctx);
@@ -1233,7 +1237,7 @@ int mu_begin_window_ex(mu_Context *ctx, const char *title, mu_Rect rect, int opt
   mu_Id id = mu_get_id(ctx, title, strlen(title));
   mu_Container *cnt = get_container(ctx, id, opt);
   if (!cnt || !cnt->open) { return 0; }
-  push(ctx->id_stack, id);
+  mu_push_id(ctx, id);
 
   // cnt->rect.w == 0 evaluates to true only on first run (uninitialized window)
   if (cnt->rect.w == 0 || opt & MU_OPT_FIXED_SIZE) { cnt->rect = rect; }
@@ -1357,7 +1361,8 @@ void mu_end_popup(mu_Context *ctx) {
 
 void mu_begin_panel_ex(mu_Context *ctx, const char *name, int opt) {
   mu_Container *cnt;
-  mu_push_id(ctx, name, strlen(name));
+  mu_Id id = mu_get_id(ctx, name, strlen(name));
+  mu_push_id(ctx, id);
   cnt = get_container(ctx, ctx->cur_id, opt);
   cnt->rect = mu_layout_next(ctx);
   if (~opt & MU_OPT_NOFRAME) {
