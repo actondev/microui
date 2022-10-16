@@ -94,7 +94,8 @@ static void test_window(mu_Context *ctx) {
       static int do_button = 0;
       mu_checkbox(ctx, "use button for the right layout", &do_button);
       int content_height = 10;
-      int row_height = 3*(10*content_height +2*ctx->style->padding + ctx->style->spacing) - ctx->style->spacing;
+      mu_Style *style = mu_get_style(ctx);
+      int row_height = 3*(10*content_height +2*style->padding + style->spacing) - style->spacing;
       (void)row_height;
       // we either pass the calculated row_height from above, or 0 (for default height)
       // In the second case, we need to calculate & set the layout height (as done below).
@@ -117,12 +118,12 @@ static void test_window(mu_Context *ctx) {
       // mu_layout_row (the one before the layout_bein_column), the
       // next line could be skipped (as the r.h will already have the
       // correct value)
-      r.h = rect2.y-rect1.y - ctx->style->spacing;
+      r.h = rect2.y-rect1.y - style->spacing;
       char buf[32];
       sprintf(buf, "#%02X%02X%02X", (int)mu_demo_bg[0], (int)mu_demo_bg[1], (int)mu_demo_bg[2]);
       if(do_button) {
         mu_layout_set_next(ctx, r, 0);
-        mu_Color *color = &ctx->style->colors[MU_COLOR_BUTTON];
+        mu_Color *color = &style->colors[MU_COLOR_BUTTON];
         mu_Color prev_color = *color;
         color->r = mu_demo_bg[0];
         color->g = mu_demo_bg[1];
@@ -158,7 +159,7 @@ static void log_window(mu_Context *ctx) {
     int submitted = 0;
     mu_layout_row(ctx, 2, (const int[]) { -70, -1 }, 0);
     if (mu_textbox(ctx, buf, sizeof(buf)) & MU_RES_SUBMIT) {
-      mu_set_focus(ctx, ctx->cur_id);
+      mu_set_focus(ctx, mu_get_current_id(ctx));
       submitted = 1;
     }
     if (mu_button(ctx, "Submit")) { submitted = 1; }
@@ -204,13 +205,14 @@ static void style_window(mu_Context *ctx) {
     int sw = mu_get_current_container(ctx)->body.w * 0.14;
     int widths[] = { 80, sw, sw, sw, sw, -1 };
     mu_layout_row(ctx, 6, widths , 0);
+    mu_Style *style = mu_get_style(ctx);
     for (int i = 0; colors[i].label; i++) {
       mu_label(ctx, colors[i].label);
-      uint8_slider(ctx, &ctx->style->colors[i].r, 0, 255);
-      uint8_slider(ctx, &ctx->style->colors[i].g, 0, 255);
-      uint8_slider(ctx, &ctx->style->colors[i].b, 0, 255);
-      uint8_slider(ctx, &ctx->style->colors[i].a, 0, 255);
-      mu_draw_rect(ctx, mu_layout_next(ctx), ctx->style->colors[i]);
+      uint8_slider(ctx, &style->colors[i].r, 0, 255);
+      uint8_slider(ctx, &style->colors[i].g, 0, 255);
+      uint8_slider(ctx, &style->colors[i].b, 0, 255);
+      uint8_slider(ctx, &style->colors[i].a, 0, 255);
+      mu_draw_rect(ctx, mu_layout_next(ctx), style->colors[i]);
     }
     mu_end_window(ctx);
   }

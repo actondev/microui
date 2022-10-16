@@ -53,7 +53,6 @@ inline void pop(std::vector<T> &stk) {
   stk.pop_back();
 }
 
-
 static mu_Rect unclipped_rect = {{ 0, 0, 0x1000000, 0x1000000 }};
 
 static mu_Style default_style = {
@@ -89,6 +88,80 @@ static mu_Style default_style = {
   }
 };
 
+static void default_draw_frame(mu_Context *ctx, mu_Rect rect, int colorid);
+
+struct mu_Context {
+  vgir_ctx* vgir;
+  vgir_jump_t vgir_begin, vgir_end;
+  /* callbacks */
+  int (*text_width)(mu_Font font, int font_size, const char *str, int len);
+  int (*text_height)(mu_Font font, int font_size);
+  void (*draw_frame)(mu_Context *ctx, mu_Rect rect, int colorid);
+  /* core state */
+  mu_Style _style;
+  mu_Style *style{nullptr};
+  mu_Id hover{0};
+  mu_Id focus{0};
+  mu_Id last_focus{0};
+  bool should_focus_next{false};
+  mu_Id prev_id{0};
+  mu_Id cur_id{0};
+  mu_Rect last_rect;
+  int last_zindex{0};
+  bool updated_focus{false};
+  int frame{0};
+  mu_Container *hover_root{nullptr};
+  mu_Container *next_hover_root{nullptr};
+  mu_Container *scroll_target{nullptr};
+  char number_edit_buf[MU_MAX_FMT];
+  mu_Id number_edit{0};
+  /* stacks */
+#if MU_COMMANDS
+  std::vector<char> command_list;
+#endif
+  std::vector<mu_Container*> root_list;
+  std::vector<mu_Container*> container_stack;
+  std::vector<mu_Rect> clip_stack;
+  std::vector<mu_Id> id_stack;
+  std::vector<mu_Layout> layout_stack;
+  /* retained state pools */
+  mu_PoolItem container_pool[MU_CONTAINERPOOL_SIZE];
+  mu_Container containers[MU_CONTAINERPOOL_SIZE];
+  mu_PoolItem treenode_pool[MU_TREENODEPOOL_SIZE];
+  /* input state */
+  mu_Vec2 mouse_pos;
+  mu_Vec2 last_mouse_pos;
+  mu_Vec2 mouse_delta;
+  mu_Vec2 scroll_delta;
+  int mouse_down{0};
+  /// Delta: was mouse pressed (not pressed -> pressed) in THIS frame
+  int mouse_pressed{0};
+  int key_down{0};
+  int key_pressed{0};
+  char input_text[32];
+
+  // mouse hover stack
+  std::vector<mu_Id> hover_stack;
+  // containes the current or last focus element stack (might be from
+  // clicking an element or by tabbing to cycle through elements)
+  std::vector<mu_Id> focus_stack;
+  // the current element stack
+
+  mu_Context() {
+#if MU_COMMANDS
+    command_list.reserve(MU_COMMANDLIST_SIZE);
+#endif
+    root_list.reserve(MU_ROOTLIST_SIZE);
+    container_stack.reserve(MU_CONTAINERSTACK_SIZE);
+    clip_stack.reserve(MU_CLIPSTACK_SIZE);
+    id_stack.reserve(MU_IDSTACK_SIZE);
+    layout_stack.reserve(MU_LAYOUTSTACK_SIZE);
+
+    draw_frame = default_draw_frame;
+    _style = default_style;
+    style = &_style;
+  }
+};
 
 mu_Vec2 mu_vec2(int x, int y) {
   mu_Vec2 res;
@@ -132,7 +205,7 @@ static int rect_overlaps_vec2(mu_Rect r, mu_Vec2 p) {
 }
 
 
-static void draw_frame(mu_Context *ctx, mu_Rect rect, int colorid) {
+static void default_draw_frame(mu_Context *ctx, mu_Rect rect, int colorid) {
   mu_draw_rect(ctx, rect, ctx->style->colors[colorid]);
   if (colorid == MU_COLOR_SCROLLBASE  ||
       colorid == MU_COLOR_SCROLLTHUMB ||
@@ -143,18 +216,27 @@ static void draw_frame(mu_Context *ctx, mu_Rect rect, int colorid) {
   }
 }
 
-void mu_init(mu_Context *ctx) {
-  ctx->vgir = nullptr;
-  ctx->draw_frame = draw_frame;
-  ctx->_style = default_style;
-  ctx->style = &ctx->_style;
-  ctx->should_focus_next = false;
+mu_Context *mu_init() {
+  return new mu_Context();
+}
+
+void mu_free(mu_Context *ctx) {
+  delete ctx;
 }
 
 void mu_set_vgir(mu_Context *ctx, vgir_ctx *vgir) {
   ctx->vgir = vgir;
 }
 
+vgir_ctx* mu_get_vgir(mu_Context *ctx) { return ctx->vgir; }
+
+void mu_set_text_width_cb(mu_Context *ctx, mu_TextWidthCb cb) {
+  ctx->text_width = cb;
+}
+
+void mu_set_text_height_cb(mu_Context *ctx, mu_TextHeightCb cb) {
+  ctx->text_height = cb;
+}
 
 void mu_begin(mu_Context *ctx) {
   expect(ctx->text_width && ctx->text_height);
@@ -282,9 +364,9 @@ void mu_push_id(mu_Context *ctx, const void *data, int size) {
 }
 
 
-void mu_pop_id(mu_Context *ctx) {
-  pop(ctx->id_stack);
-}
+void mu_pop_id(mu_Context *ctx) { pop(ctx->id_stack); }
+
+mu_Id mu_get_current_id(mu_Context *ctx) {return ctx->cur_id;}
 
 
 void mu_push_clip_rect(mu_Context *ctx, mu_Rect rect) {
@@ -383,6 +465,10 @@ void mu_bring_to_front(mu_Context *ctx, mu_Container *cnt) {
   cnt->zindex = ++ctx->last_zindex;
 }
 
+mu_Style *mu_get_style(mu_Context *ctx) {
+  return ctx->style;
+}
+
 
 /*============================================================================
 ** pool
@@ -424,6 +510,9 @@ void mu_pool_update(mu_Context *ctx, mu_PoolItem *items, int idx) {
 
 void mu_input_mousemove(mu_Context *ctx, int x, int y) {
   ctx->mouse_pos = mu_vec2(x, y);
+}
+mu_Vec2 mu_get_mouse_pos(mu_Context *ctx) {
+  return ctx->mouse_pos;
 }
 
 
