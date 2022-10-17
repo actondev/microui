@@ -40,6 +40,19 @@
 #define LOG(format, ...) {};
 #endif
 
+#define MICROUI_LOG 1
+
+#if MICROUI_LOG
+#include <fmt/core.h>
+#include <fmt/format.h>
+#include <fmt/ostream.h>
+#define LOG(format, ...)                                                       \
+  fmt::print("[microui] ");fmt::print(format, ##__VA_ARGS__); fmt::print("\n");
+#else
+#define LOG(format, ...) {};
+#endif
+
+
 #define unused(x) ((void) (x))
 
 #define expect(x) do {                                               \
@@ -103,6 +116,28 @@ static mu_Style default_style = {
 
 static void default_draw_frame(mu_Context *ctx, mu_Rect rect, int colorid);
 
+template <typename Fn>
+struct mu_Handler {
+  mu_Id id;
+  Fn handler;
+};
+
+struct Event {
+  mu_EventType type;
+  bool propagate{true};
+  union {
+    mu_KeyEvent key;
+    mu_MouseButtonEvent mousebutton;
+    mu_MouseMoveEvent mousemove;
+  };
+};
+
+struct EventHandlerWrapper {
+  mu_Id container_id;
+  mu_EventType type;
+  mu_EventHandler fn;
+};
+
 struct mu_Context {
   vgir_ctx* vgir;
   vgir_jump_t vgir_begin, vgir_end; // begin: head, end: tail
@@ -134,6 +169,16 @@ struct mu_Context {
   std::vector<mu_Rect> clip_stack;
   std::vector<mu_Id> id_stack;
   std::vector<mu_Layout> layout_stack;
+  std::vector<mu_Id> hovered_container_stack;
+  // containes the current or last focus element stack (might be from
+  // clicking an element or by tabbing to cycle through elements)
+  std::vector<mu_Id> focus_stack;
+
+  std::vector<mu_Event> events;
+
+  std::vector<EventHandlerWrapper> event_handlers;
+  std::vector<EventHandlerWrapper> global_event_handlers;
+
   /* retained state pools */
   mu_PoolItem container_pool[MU_CONTAINERPOOL_SIZE];
   mu_Container containers[MU_CONTAINERPOOL_SIZE];
@@ -149,13 +194,6 @@ struct mu_Context {
   int key_down{0};
   int key_pressed{0};
   char input_text[32];
-
-  // mouse hover stack
-  std::vector<mu_Id> hover_stack;
-  // containes the current or last focus element stack (might be from
-  // clicking an element or by tabbing to cycle through elements)
-  std::vector<mu_Id> focus_stack;
-  // the current element stack
 
   mu_Context(vgir_ctx *vgir): vgir(vgir) {
     expect(vgir);
@@ -243,12 +281,72 @@ void mu_set_text_height_cb(mu_Context *ctx, mu_TextHeightCb cb) {
 void mu_begin(mu_Context *ctx) {
   expect(ctx->text_width && ctx->text_height);
   ctx->root_list.clear();
+  ctx->hovered_container_stack.clear();
+
+  ctx->event_handlers.clear();
+  ctx->global_event_handlers.clear();
+
   ctx->scroll_target = nullptr;
   ctx->hover_root = ctx->next_hover_root;
   ctx->next_hover_root = nullptr;
   ctx->mouse_delta.x = ctx->mouse_pos.x - ctx->last_mouse_pos.x;
   ctx->mouse_delta.y = ctx->mouse_pos.y - ctx->last_mouse_pos.y;
   ctx->frame++;
+}
+
+static auto make_is_handler_applicable(const mu_Event &event, const std::vector<mu_Id> &stack, mu_Id target_id) {
+  return [=](const auto &handler) {
+    if(!(handler.type & event.type)) {
+      return false;
+    }
+    if (handler.container_id == target_id) {
+      return true; // exact match
+    }
+    if (handler.container_id == 0) {
+      return true; // fallback
+    }
+    // matching parents
+    return std::any_of(stack.rbegin(), stack.rend(),
+                       [&](const auto parentFocusId) {
+                         const bool handlerMatchesFocusParent =
+                             handler.container_id == parentFocusId;
+                         return handlerMatchesFocusParent;
+                       });
+  };
+}
+
+static void handle_event(mu_Context *ctx, const mu_Event &event, std::vector<mu_Id> &id_stack, mu_Id target_id) {
+  using namespace ranges;
+
+  auto make_event_handlers = [&](auto &handlers, const mu_Event &event) {
+    return handlers | views::reverse |
+        views::filter(make_is_handler_applicable(event, id_stack, target_id));
+  };
+
+  for (const auto &handler : make_event_handlers(ctx->global_event_handlers, event)) {
+    if (handler.fn(event)) return;
+  }
+
+  for(const auto &handler : make_event_handlers(ctx->event_handlers, event)) {
+    if(handler.fn(event)) return;
+  }
+}
+
+static void handle_events(mu_Context *ctx) {
+  if(ctx->events.empty()) return;
+
+  const auto focus_id = ctx->focus ? ctx->focus : ctx->last_focus;
+  const auto hover_id = !ctx->hovered_container_stack.empty() ? ctx->hovered_container_stack.back() : 0;
+
+  for(const auto &event : ctx->events) {
+    if(event.type & (mu_EventType::MOUSEDOWN | mu_EventType::MOUSEUP | mu_EventType::MOUSEMOVE)) {
+      handle_event(ctx, event, ctx->hovered_container_stack, hover_id);
+    } else if (event.type & (mu_EventType::KEYDOWN | mu_EventType::KEYUP | mu_EventType::KEYPRESS)) {
+      handle_event(ctx, event, ctx->focus_stack, focus_id);
+    }
+    // TODO implement global event listeneres who get called no matter the propagation
+    // if(!event.propagate) continue;
+  }
 }
 
 void mu_end(mu_Context *ctx) {
@@ -258,6 +356,9 @@ void mu_end(mu_Context *ctx) {
   expect(ctx->clip_stack.empty());
   expect(ctx->id_stack.empty());
   expect(ctx->layout_stack.empty());
+
+  handle_events(ctx);
+  ctx->events.clear();
 
   /* handle scroll input */
   if (ctx->scroll_target) {
@@ -309,6 +410,13 @@ void mu_set_focus(mu_Context *ctx, mu_Id id) {
   ctx->last_focus = ctx->focus;
   ctx->focus = id;
   ctx->updated_focus = true;
+  if(id) {
+    ctx->focus_stack = ctx->id_stack;
+    LOG("setting focus to id {}, stack", id);
+    for(auto id : ctx->focus_stack) {
+      LOG("  {}", id);
+    }
+  }
 }
 
 /* 32bit fnv-1a hash */
@@ -404,7 +512,9 @@ static mu_Container* get_container(mu_Context *ctx, mu_Id id, int opt) {
     if (ctx->containers[idx].open || ~opt & MU_OPT_CLOSED) {
       mu_pool_update(ctx, ctx->container_pool, idx);
     }
-    return &ctx->containers[idx];
+    mu_Container *cnt = &ctx->containers[idx];
+    cnt->id = id; // guess not needed? not sure how the container pool works
+    return cnt;
   }
   if (opt & MU_OPT_CLOSED) { return nullptr; }
   /* container not found in pool: init new container */
@@ -412,6 +522,7 @@ static mu_Container* get_container(mu_Context *ctx, mu_Id id, int opt) {
   cnt = &ctx->containers[idx];
   memset(cnt, 0, sizeof(*cnt));
   cnt->open = 1;
+  cnt->id = id;
   mu_bring_to_front(ctx, cnt);
   return cnt;
 }
@@ -464,8 +575,46 @@ void mu_pool_update(mu_Context *ctx, mu_PoolItem *items, int idx) {
 /*============================================================================
 ** input handlers
 **============================================================================*/
+bool mu_has_event(mu_Context *ctx, mu_EventType type) {
+  auto it= std::find_if(ctx->events.begin(), ctx->events.end(), [type](const auto &event) {
+      return event.type & type;
+    });
+  return it != ctx->events.end();
+}
+
+void mu_event_handler(mu_Context *ctx, mu_EventType type, mu_EventHandler handler_fn) {
+  mu_Id id = 0;
+  if( !ctx->id_stack.empty()) {
+    id = ctx->id_stack.back();
+  }
+  EventHandlerWrapper handler_wrapper;
+  handler_wrapper.type = type;
+  handler_wrapper.container_id = id;
+  handler_wrapper.fn = handler_fn;
+
+  ctx->event_handlers.push_back(handler_wrapper);
+}
+
+void mu_global_event_handler(mu_Context *ctx, mu_EventType type, mu_EventHandler handler_fn) {
+  mu_Id id = 0;
+  EventHandlerWrapper handler_wrapper;
+  handler_wrapper.type = type;
+  handler_wrapper.container_id = id;
+  handler_wrapper.fn = handler_fn;
+
+  ctx->global_event_handlers.push_back(handler_wrapper);
+}
 
 void mu_input_mousemove(mu_Context *ctx, int x, int y) {
+  mu_Event ev;
+  ev.type = MOUSEMOVE;
+  mu_MouseMoveEvent data;
+  data.x = x;
+  data.y = y;
+  data.dx = x - ctx->mouse_pos.x;
+  data.dy = y - ctx->mouse_pos.y;
+  ev.data = data;
+  ctx->events.push_back(ev);
   ctx->mouse_pos = mu_vec2(x, y);
 }
 mu_Vec2 mu_get_mouse_pos(mu_Context *ctx) {
@@ -473,12 +622,26 @@ mu_Vec2 mu_get_mouse_pos(mu_Context *ctx) {
 }
 
 void mu_input_mousedown(mu_Context *ctx, int x, int y, int btn) {
+  mu_Event ev;
+  ev.type = MOUSEDOWN;
+  mu_MouseButtonEvent data;
+  data.button = btn;
+  ev.data = data;
+  ctx->events.push_back(ev);
+
   mu_input_mousemove(ctx, x, y);
   ctx->mouse_down |= btn;
   ctx->mouse_pressed |= btn;
 }
 
 void mu_input_mouseup(mu_Context *ctx, int x, int y, int btn) {
+  mu_Event ev;
+  ev.type = MOUSEUP;
+  mu_MouseButtonEvent data;
+  data.button = btn;
+  ev.data = data;
+  ctx->events.push_back(ev);
+  
   mu_input_mousemove(ctx, x, y);
   ctx->mouse_down &= ~btn;
 }
@@ -489,11 +652,25 @@ void mu_input_scroll(mu_Context *ctx, int x, int y) {
 }
 
 void mu_input_keydown(mu_Context *ctx, int key) {
+  mu_Event ev;
+  ev.type = KEYDOWN;
+  mu_KeyEvent data;
+  data.key = key;
+  ev.data = data;
+  ctx->events.push_back(ev);
+  
   ctx->key_pressed |= key;
   ctx->key_down |= key;
 }
 
 void mu_input_keyup(mu_Context *ctx, int key) {
+  mu_Event ev;
+  ev.type = KEYUP;
+  mu_KeyEvent data;
+  data.key = key;
+  ev.data = data;
+  ctx->events.push_back(ev);
+
   ctx->key_down &= ~key;
 }
 
@@ -557,7 +734,6 @@ void mu_draw_text(mu_Context *ctx, mu_Font font, int font_size, const char *str,
   vgir_begin_path(ctx->vgir); // before clipping!
   if (clipped == MU_CLIP_PART) { mu_push_clip_draw(ctx, mu_get_clip_rect(ctx)); }
 
-  /* add command */
   if (len < 0) { len = strlen(str); }
   vgir_begin_path(ctx->vgir);
   vgir_ctx *vgir = ctx->vgir;
@@ -679,7 +855,6 @@ mu_Rect mu_layout_next(mu_Context *ctx) {
     if (type == ABSOLUTE) {
       return (ctx->last_rect = res);
     }
-
   } else {
     /* handle next row */
     if (layout->item_index == layout->items) {
@@ -791,6 +966,14 @@ int mu_mouse_over(mu_Context *ctx, mu_Rect rect) {
     in_hover_root(ctx);
 }
 
+// TODO reintroduce this
+static void stop_events_propagation(mu_Context *ctx, int types) {
+  for (auto &ev : ctx->events) {
+    if(ev.type & types) {
+      // ev.propagate = false;
+    }
+  }
+}
 
 /// Called from: button, checkbox, textbox, number, header, scrollbar, window title/close/resize
 void mu_update_control(mu_Context *ctx, mu_Id id, mu_Rect rect, int opt) {
@@ -802,6 +985,9 @@ void mu_update_control(mu_Context *ctx, mu_Id id, mu_Rect rect, int opt) {
     handled_focus_next = true;
   }
   int mouseover = mu_mouse_over(ctx, rect);
+  if(mouseover) {
+    stop_events_propagation(ctx, MOUSEDOWN | MOUSEUP);
+  }
 
   if (ctx->focus == id) { ctx->updated_focus = true; }
   if (opt & MU_OPT_NOINTERACT) { return; }
@@ -854,7 +1040,6 @@ void mu_text(mu_Context *ctx, const char *text) {
   } while (*end);
   mu_layout_end_column(ctx);
 }
-
 
 void mu_label(mu_Context *ctx, const char *text) {
   mu_draw_control_text(ctx, text, mu_layout_next(ctx), MU_COLOR_TEXT, 0);
@@ -1153,12 +1338,15 @@ static void scrollbars(mu_Context *ctx, mu_Container *cnt, mu_Rect *body) {
 }
 
 static void push_container_body(
-  mu_Context *ctx, mu_Container *cnt, mu_Rect body, int opt
+    mu_Context *ctx, mu_Container *cnt, mu_Rect body, int opt
 ) {
   if (~opt & MU_OPT_NOSCROLL) { scrollbars(ctx, cnt, &body); }
   push_layout(ctx, expand_rect(body, -ctx->style->padding), cnt->scroll);
   cnt->body = body;
   vgir_push_scissor(ctx->vgir, cnt->body.x, cnt->body.y, cnt->body.w, cnt->body.h);
+  if(mu_mouse_over(ctx, body)) {
+    ctx->hovered_container_stack.push_back(cnt->id);
+  }
 }
 
 static void begin_root_container(mu_Context *ctx, mu_Container *cnt) {

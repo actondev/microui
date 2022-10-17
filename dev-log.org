@@ -78,6 +78,21 @@ struct ImGuiInputEvent
      called on NewFrame
 ** UX: clicks
    https://ux.stackexchange.com/questions/16066/what-to-consider-a-click
+** <2022-10-25 Tue> notes:
+   - mu_event_handler \\
+     pushes an event handler (tied to the current container id) which
+     is part of the bubbling up the event. If the handler returns true
+     the propagation is stopped
+   - mu_global_event_handler \\
+     like the above, but the handler is not tied to any container
+     id. All the global event handlers run before the normal ones
+   - mu_event_listener \\
+     This is also tied to the container id, but here the events always
+     bubble up. This is for observing only. There is no concept of
+     "stopping event propagation" here.
+   - mu_global_event_listener \\
+     like the above, but not tied to the container id where the call
+     was made.
 * TODO <2022-10-22 Sat> modify behaviors
   - [ ] window: pass bool pointer
   - [ ] button: return true on mouseup (click), not on mousedown

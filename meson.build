@@ -10,7 +10,9 @@ microui = library('microui',
                   src,
                   include_directories: 'src',
                   dependencies: [
-                    dependency('vgir')
+                    dependency('vgir'),
+                    dependency('fmt'),
+                    dependency('range-v3'),
                   ]
                  )
 microui_dep = declare_dependency(

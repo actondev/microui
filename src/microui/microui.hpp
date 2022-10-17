@@ -12,7 +12,7 @@
 #include <stack>
 #include <vector>
 #include <functional>
-
+#include <variant>
 
 #define MU_VERSION "2.01"
 
@@ -156,6 +156,7 @@ typedef struct {
 } mu_Layout;
 
 typedef struct {
+  mu_Id id;
   vgir_jump_t vgir_begin, vgir_end;
   mu_Rect rect;
   mu_Rect body;
@@ -202,8 +203,8 @@ mu_Context *mu_init(vgir_ctx *);
 void mu_free(mu_Context *ctx);
 
 #if 0
-using mu_TextWidthCb = std::function<int>(mu_Font, int font_size, const char *str, int len);
-using mu_TextHeightCb = std::function<int>(mu_Font, int font_size);
+using mu_TextWidthCb = std::function<int(mu_Font, int font_size, const char *str, int len)>;
+using mu_TextHeightCb = std::function<int(mu_Font, int font_size)>;
 #else
 using mu_TextWidthCb = int (*)(mu_Font font, int font_size, const char *str, int len);
 using mu_TextHeightCb = int (*)(mu_Font font, int font_size);
@@ -235,10 +236,41 @@ int mu_pool_init(mu_Context *ctx, mu_PoolItem *items, int len, mu_Id id);
 int mu_pool_get(mu_Context *ctx, mu_PoolItem *items, int len, mu_Id id);
 void mu_pool_update(mu_Context *ctx, mu_PoolItem *items, int idx);
 
+struct mu_KeyEvent {
+  int key;
+};
+
+struct mu_MouseButtonEvent {
+  int button;
+};
+
+struct mu_MouseMoveEvent {
+  float x,y,dx,dy;
+};
+
+enum mu_EventType {
+  KEYDOWN = 1 << 0,
+  KEYUP = 1 << 1,
+  KEYPRESS = 1 << 2,
+  MOUSEDOWN = 1 << 3,
+  MOUSEUP = 1 << 4,
+  MOUSEMOVE = 1 << 5,
+};
+
+struct mu_Event {
+  mu_EventType type;
+  std::variant<mu_KeyEvent, mu_MouseButtonEvent, mu_MouseMoveEvent> data;
+};
+
+using mu_EventHandler = std::function<bool(mu_Event)>;
+
+bool mu_has_event(mu_Context *, mu_EventType);
+void mu_event_handler(mu_Context *, mu_EventType, mu_EventHandler);
+void mu_global_event_handler(mu_Context *, mu_EventType, mu_EventHandler);
+
 void mu_input_mousemove(mu_Context *ctx, int x, int y);
 void mu_input_mousedown(mu_Context *ctx, int x, int y, int btn);
 void mu_input_mouseup(mu_Context *ctx, int x, int y, int btn);
-mu_Vec2 mu_get_mouse_pos(mu_Context *ctx);
 void mu_input_scroll(mu_Context *ctx, int x, int y);
 void mu_input_keydown(mu_Context *ctx, int key);
 void mu_input_keyup(mu_Context *ctx, int key);
