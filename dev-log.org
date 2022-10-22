@@ -1,0 +1,84 @@
+* <2022-10-16 Sun> handling events with push/pop handler
+** scroll
+   - push_container_body
+     called by
+     - mu_begin_window_ex
+     - mu_begin_panel_ex
+   - scrollbars
+   - scrollbar
+     uses =mu_Container *cnt->scroll.data=
+
+   right now:
+   =scrollbar= has
+   #+begin_src cpp
+  /* set this as the scroll_target (will get scrolled on mousewheel) */
+  /* if the mouse is over it */
+  if (mu_mouse_over(ctx, *b)) {
+    ctx->scroll_target = cnt;
+  }
+   #+end_src
+   *IF* it doesn't early return (ie neither horizontal nor vertical scrollbar needs to show)
+
+
+   disambiguation with other windows:
+   #+begin_src cpp
+int mu_mouse_over(mu_Context *ctx, mu_Rect rect) {
+  return rect_overlaps_vec2(rect, ctx->mouse_pos) &&
+    rect_overlaps_vec2(mu_get_clip_rect(ctx), ctx->mouse_pos) &&
+    in_hover_root(ctx);
+}
+
+static int in_hover_root(mu_Context *ctx) {
+  int i = ctx->container_stack.idx;
+  while (i--) {
+    if (ctx->container_stack.items[i] == ctx->hover_root) { return 1; }
+    /* only root containers have their `head` field set; stop searching if we've
+    ,** reached the current root container */
+    if (ctx->container_stack.items[i]->head) { break; }
+  }
+  return 0;
+}
+
+   #+end_src
+
+** imgui notes
+   - [[file:~/dev/actondev/imgui/imgui.cpp::void ImGuiIO::AddKeyEvent(ImGuiKey key, bool down)]]
+   - [[file:~/dev/actondev/imgui/imgui_internal.h::Imguiinputeventtype Type;]]
+     #+begin_src cpp
+
+// FIXME: Structures in the union below need to be declared as anonymous unions appears to be an extension?
+// Using ImVec2() would fail on Clang 'union member 'MousePos' has a non-trivial default constructor'
+struct ImGuiInputEventMousePos      { float PosX, PosY; };
+struct ImGuiInputEventMouseWheel    { float WheelX, WheelY; };
+struct ImGuiInputEventMouseButton   { int Button; bool Down; };
+struct ImGuiInputEventKey           { ImGuiKey Key; bool Down; float AnalogValue; };
+struct ImGuiInputEventText          { unsigned int Char; };
+struct ImGuiInputEventAppFocused    { bool Focused; };
+
+
+struct ImGuiInputEvent
+{
+    ImGuiInputEventType             Type;
+    ImGuiInputSource                Source;
+    union
+    {
+        ImGuiInputEventMousePos     MousePos;       // if Type == ImGuiInputEventType_MousePos
+        ImGuiInputEventMouseWheel   MouseWheel;     // if Type == ImGuiInputEventType_MouseWheel
+        ImGuiInputEventMouseButton  MouseButton;    // if Type == ImGuiInputEventType_MouseButton
+        ImGuiInputEventKey          Key;            // if Type == ImGuiInputEventType_Key
+        ImGuiInputEventText         Text;           // if Type == ImGuiInputEventType_Text
+        ImGuiInputEventAppFocused   AppFocused;     // if Type == ImGuiInputEventType_Focus
+    };
+    bool                            AddedByTestEngine;
+
+    ImGuiInputEvent() { memset(this, 0, sizeof(*this)); }
+};
+     #+end_src
+   - [[file:~/dev/actondev/imgui/imgui.cpp::void ImGui::UpdateInputEvents(bool trickle_fast_inputs)]]
+     called on NewFrame
+** UX: clicks
+   https://ux.stackexchange.com/questions/16066/what-to-consider-a-click
+* TODO <2022-10-22 Sat> modify behaviors
+  - [ ] window: pass bool pointer
+  - [ ] button: return true on mouseup (click), not on mousedown
+  - [ ] differentiate =focus=: mouse focus vs kbd focus.

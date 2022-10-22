@@ -140,16 +140,6 @@ typedef struct { mu_BaseCommand base; mu_Rect rect; mu_Color color; } mu_RectCom
 typedef struct { mu_BaseCommand base; mu_Font font; mu_Vec2 pos; mu_Color color; char str[1]; } mu_TextCommand;
 typedef struct { mu_BaseCommand base; mu_Rect rect; int id; mu_Color color; } mu_IconCommand;
 
-typedef union {
-  int type;
-  mu_BaseCommand base;
-  mu_JumpCommand jump;
-  mu_ClipCommand clip;
-  mu_RectCommand rect;
-  mu_TextCommand text;
-  mu_IconCommand icon;
-} mu_Command;
-
 typedef struct {
   mu_Rect body;
   mu_Rect next;
@@ -165,8 +155,7 @@ typedef struct {
 } mu_Layout;
 
 typedef struct {
-  mu_Command *head, *tail;
-  vgir_jump_t vgir_head, vgir_tail;
+  vgir_jump_t vgir_begin, vgir_end;
   mu_Rect rect;
   mu_Rect body;
   mu_Vec2 content_size;
@@ -208,7 +197,7 @@ mu_Vec2 mu_vec2(int x, int y);
 mu_Rect mu_rect(int x, int y, int w, int h);
 mu_Color mu_color(int r, int g, int b, int a);
 
-mu_Context *mu_init();
+mu_Context *mu_init(vgir_ctx *);
 void mu_free(mu_Context *ctx);
 
 #if 0
@@ -254,8 +243,8 @@ void mu_input_keydown(mu_Context *ctx, int key);
 void mu_input_keyup(mu_Context *ctx, int key);
 void mu_input_text(mu_Context *ctx, const char *text);
 
-mu_Command* mu_push_command(mu_Context *ctx, int type, int size);
-int mu_next_command(mu_Context *ctx, mu_Command **cmd);
+mu_Vec2 mu_get_mouse_pos(mu_Context *ctx);
+
 void mu_draw_rect(mu_Context *ctx, mu_Rect rect, mu_Color color);
 void mu_draw_box(mu_Context *ctx, mu_Rect rect, mu_Color color);
 void mu_draw_text(mu_Context *ctx, mu_Font font, int size, const char *str, int len, mu_Vec2 pos, mu_Color color);
