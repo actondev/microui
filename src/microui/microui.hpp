@@ -151,6 +151,7 @@ typedef struct {
   int item_index;
   int next_row;
   int next_type;
+  std::optional<mu_Vec2> next_size;
   int indent;
 } mu_Layout;
 
@@ -257,6 +258,7 @@ void mu_layout_height(mu_Context *ctx, int height);
 void mu_layout_begin_column(mu_Context *ctx);
 void mu_layout_end_column(mu_Context *ctx);
 void mu_layout_set_next(mu_Context *ctx, mu_Rect r, int relative);
+void mu_layout_set_next_size(mu_Context *, mu_Vec2);
 mu_Rect mu_layout_next(mu_Context *ctx);
 
 void mu_draw_control_frame(mu_Context *ctx, mu_Id id, mu_Rect rect, int colorid, int opt);

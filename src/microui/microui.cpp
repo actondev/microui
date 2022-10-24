@@ -662,6 +662,11 @@ void mu_layout_set_next(mu_Context *ctx, mu_Rect r, int relative) {
   layout->next_type = relative ? RELATIVE : ABSOLUTE;
 }
 
+void mu_layout_set_next_size(mu_Context *ctx, mu_Vec2 size) {
+  mu_Layout *layout = mu_get_layout(ctx);
+  layout->next_size = size;
+}
+
 mu_Rect mu_layout_next(mu_Context *ctx) {
   mu_Layout *layout = mu_get_layout(ctx);
   mu_Style *style = ctx->style;
@@ -687,9 +692,16 @@ mu_Rect mu_layout_next(mu_Context *ctx) {
     res.y = layout->position.y + style->spacing;
 
     /* size */
-    // Note: if layout items are set (ie their widths), this width includes padding
-    res.w = layout->items > 0 ? layout->widths[layout->item_index] : layout->size.x;
-    res.h = layout->size.y;
+    if(layout->next_size.has_value()) {
+      const auto &next_size = layout->next_size.value();
+      res.w = next_size.x;
+      res.h = next_size.y;
+      layout->next_size = std::nullopt;
+    } else {
+      // Note: if layout items are set (ie their widths), this width includes padding
+      res.w = layout->items > 0 ? layout->widths[layout->item_index] : layout->size.x;
+      res.h = layout->size.y;
+    }
     if (res.w == 0) { res.w = style->size.x + style->padding * 2; }
     if (res.h == 0) { res.h = style->size.y + style->padding * 2; }
     if (res.w <  0) { res.w += layout->body.w - res.x + 1; }
