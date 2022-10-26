@@ -368,7 +368,6 @@ int mu_check_clip(mu_Context *ctx, mu_Rect r) {
 static void push_layout(mu_Context *ctx, mu_Rect body, mu_Vec2 scroll) {
   mu_Layout layout;
   int width = 0;
-  memset(&layout, 0, sizeof(layout));
   layout.body = mu_rect(body.x - scroll.x, body.y - scroll.y, body.w, body.h);
   layout.max = mu_vec2(-0x1000000, -0x1000000);
   push(ctx->layout_stack, layout);

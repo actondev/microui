@@ -141,18 +141,18 @@ typedef struct { mu_BaseCommand base; mu_Font font; mu_Vec2 pos; mu_Color color;
 typedef struct { mu_BaseCommand base; mu_Rect rect; int id; mu_Color color; } mu_IconCommand;
 
 typedef struct {
-  mu_Rect body;
-  mu_Rect next;
-  mu_Vec2 position;
-  mu_Vec2 size;
-  mu_Vec2 max;
-  int widths[MU_MAX_WIDTHS];
-  int items;
-  int item_index;
-  int next_row;
-  int next_type;
+  mu_Rect body{0,0,0,0};
+  mu_Rect next{0,0,0,0};
+  mu_Vec2 position{0,0};
+  mu_Vec2 size{0,0};
+  mu_Vec2 max{0,0};
+  int widths[MU_MAX_WIDTHS]{0};
+  int items{0};
+  int item_index{0};
+  int next_row{0};
+  int next_type{0};
   std::optional<mu_Vec2> next_size;
-  int indent;
+  int indent{0};
 } mu_Layout;
 
 typedef struct {
