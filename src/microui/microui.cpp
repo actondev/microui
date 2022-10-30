@@ -875,6 +875,13 @@ void mu_layout_set_next_size(mu_Context *ctx, mu_Vec2 size) {
   layout->next_size = size;
 }
 
+void mu_layout_align(mu_Context *ctx, int align) {
+  mu_Layout *layout = mu_get_layout(ctx);
+  layout->align = align;
+  layout->position = {0, 0};
+  layout->next_row = 0;
+}
+
 mu_Rect mu_layout_next(mu_Context *ctx) {
   mu_Layout *layout = mu_get_layout(ctx);
   mu_Style *style = ctx->style;
@@ -936,6 +943,17 @@ mu_Rect mu_layout_next(mu_Context *ctx) {
   /* apply body offset */
   res.x += layout->body.x;
   res.y += layout->body.y;
+
+  if(layout->align & MU_ALIGN_RIGHT) {
+    auto relative = res.x - layout->body.x;
+    auto anchor = layout->body.x + layout->body.w;
+    res.x = anchor - relative - res.w;
+  }
+  if(layout->align & MU_ALIGN_BOTTOM) {
+    auto relative = res.y - layout->body.y;
+    auto anchor = layout->body.y + layout->body.h;
+    res.y = anchor - relative - res.h;
+  }
 
   /* update max position */
   layout->max.x = mu_max(layout->max.x, res.x + res.w);

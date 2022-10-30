@@ -115,6 +115,12 @@ enum {
   MU_OPT_FIXED_SIZE  = (1 << 13),
   MU_OPT_NOFOOTER    = (1 << 14),
 };
+
+enum mu_LayoutAlign {
+  MU_ALIGN_LEFT   = (1 << 0),
+  MU_ALIGN_RIGHT  = (1 << 1),
+  MU_ALIGN_TOP    = (1 << 2),
+  MU_ALIGN_BOTTOM = (1 << 3),
 };
 
 enum {
@@ -205,9 +211,10 @@ typedef struct {
   int next_type{0};
   std::optional<mu_Vec2> next_size;
   int indent{0};
+  int align{MU_ALIGN_LEFT | MU_ALIGN_TOP};
 } mu_Layout;
 
-typedef struct {
+struct mu_Container {
   mu_Id id;
   vgir_jump_t vgir_begin, vgir_end;
   mu_Rect rect;
@@ -216,7 +223,7 @@ typedef struct {
   mu_Vec2 scroll;
   int zindex;
   int open;
-} mu_Container;
+};
 
 typedef struct {
   char close[5];
@@ -346,6 +353,7 @@ void mu_draw_icon(mu_Context *ctx, int id, mu_Rect rect, mu_Color color);
 
 mu_Layout *mu_get_layout(mu_Context *ctx);
 void mu_layout_row(mu_Context *ctx, int items, const int *widths, int height);
+void mu_layout_align(mu_Context *ctx, int align);
 void mu_layout_width(mu_Context *ctx, int width);
 void mu_layout_height(mu_Context *ctx, int height);
 void mu_layout_begin_column(mu_Context *ctx);
