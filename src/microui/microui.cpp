@@ -528,14 +528,11 @@ static void pop_container(mu_Context *ctx) {
   // Adding margin: last element's margin should be included in the content size.
   // Otherwise, when having scrollbars, the last element would not have any margin (would touch the container's end)
   cnt->content_size.x = layout->max.x - layout->body.x;
-  cnt->content_size.x += style->margin.x / 2;
-
   // TODO horizontal scrollbar showing for no reason?
   // cnt->content_size.x += style->container_padding.left;
   // cnt->content_size.x += style->container_padding.right;
 
   cnt->content_size.y = layout->max.y - layout->body.y;
-  cnt->content_size.y += style->margin.y / 2;
   cnt->content_size.y += style->container_padding.top;
   cnt->content_size.y += style->container_padding.bottom;
   /* pop container, layout and id */
@@ -552,7 +549,13 @@ mu_Container *mu_get_current_container(mu_Context *ctx) {
 
 mu_Vec2 mu_get_current_container_size(mu_Context *ctx) {
   mu_Container *cnt = mu_get_current_container(ctx);
-  return {cnt->body.w, cnt->body.h};
+  const auto margin = ctx->style->margin;
+  // we init drawing from -margin/2 to have margin appear only between elements
+  // (essentially having margin/2 at each side of an element)
+  //
+  // To do calculations like draw 3 each at 1/3 of the size AND have
+  // margins between them but not before the first & after the last:
+  return {cnt->body.w + margin.x, cnt->body.h + margin.y};
 }
 
 static mu_Container *get_container(mu_Context *ctx, mu_Id id, int opt) {
@@ -855,7 +858,8 @@ void mu_layout_row(mu_Context *ctx, int items, const int *widths, int height) {
     memcpy(layout->widths, widths, items * sizeof(widths[0]));
   }
   layout->items = items;
-  layout->position = mu_vec2(layout->indent, layout->next_row);
+  const auto margin = ctx->style->margin;
+  layout->position = mu_vec2(layout->indent - margin.x / 2.f, layout->next_row - margin.y / 2.f);
   layout->size.y = height;
   layout->item_index = 0;
 }
@@ -875,11 +879,15 @@ void mu_layout_set_next_size(mu_Context *ctx, mu_Vec2 size) {
   layout->next_size = size;
 }
 
+static void next_row(mu_Context *ctx, mu_Layout *layout) {
+  mu_layout_row(ctx, layout->items, nullptr, layout->size.y); //
+}
+
 void mu_layout_align(mu_Context *ctx, int align) {
   mu_Layout *layout = mu_get_layout(ctx);
   layout->align = align;
-  layout->position = {0, 0};
   layout->next_row = 0;
+  next_row(ctx, layout);
 }
 
 mu_Rect mu_layout_next(mu_Context *ctx) {
@@ -898,7 +906,7 @@ mu_Rect mu_layout_next(mu_Context *ctx) {
   } else {
     /* handle next row */
     if(layout->item_index == layout->items) {
-      mu_layout_row(ctx, layout->items, nullptr, layout->size.y);
+      next_row(ctx, layout);
     }
 
     /* position */
@@ -916,12 +924,16 @@ mu_Rect mu_layout_next(mu_Context *ctx) {
       res.w = layout->items > 0 ? layout->widths[layout->item_index] : layout->size.x;
       res.h = layout->size.y;
     }
+
+    // When given a width/height it's assumed to be including the margin (to make calculations easier).
+    // In the case of auto width (as per style), w add the margin in the calculation ourselves
     if(res.w == 0) {
       res.w = style->size.x + style->margin.x;
     }
     if(res.h == 0) {
       res.h = style->size.y + style->margin.y;
     }
+
     if(res.w < 0) {
       res.w += layout->body.w - res.x + 1;
     }
@@ -938,7 +950,7 @@ mu_Rect mu_layout_next(mu_Context *ctx) {
 
   /* update position */
   layout->position.x += res.w + style->margin.x;
-  layout->next_row = mu_max(layout->next_row, res.y + res.h + style->margin.y / 2.f);
+  layout->next_row = mu_max(layout->next_row, res.y + res.h + style->margin.x);
 
   /* apply body offset */
   res.x += layout->body.x;
@@ -1595,6 +1607,8 @@ void mu_begin_panel_ex(mu_Context *ctx, const char *name, int opt) {
   cnt = get_container(ctx, ctx->cur_id, opt);
   if(opt & MU_OPT_AUTOSIZE) {
     opt |= MU_OPT_NOSCROLL;
+    // adding margin because it's removed from the internal calculations.
+    // ie every passed size is assumed to contain the margin already
     mu_layout_set_next_size(ctx, cnt->content_size + ctx->style->margin);
   }
 
