@@ -97,13 +97,13 @@ static mu_Style default_style = {
     {{0}, {0}, {0}, {0}, {0}, {0}}, /* icons_utf8 */
     {{68, 22}},                     // internal size (without margins)
     // {20, 20, 20, 20},               // container padding
-    {0, 0, 0, 0}, // padding
-    {10, 10},     // margin
-    24,           // indent
-    24,           // title_height
-    20,           // footer_height
-    12,           // scrollbar_size
-    8,            // thumb_size
+    {10, 10, 10, 10}, // padding
+    {10, 10},         // margin
+    24,               // indent
+    24,               // title_height
+    20,               // footer_height
+    12,               // scrollbar_size
+    8,                // thumb_size
     {
         {230, 230, 230, 255}, /* MU_COLOR_TEXT */
         {25, 25, 25, 255},    /* MU_COLOR_BORDER */
@@ -530,10 +530,10 @@ static void pop_container(mu_Context *ctx) {
   cnt->content_size.x = layout->max.x - layout->body.x;
   // TODO horizontal scrollbar showing for no reason?
   // cnt->content_size.x += style->container_padding.left;
-  // cnt->content_size.x += style->container_padding.right;
+  cnt->content_size.x += style->container_padding.right;
 
   cnt->content_size.y = layout->max.y - layout->body.y;
-  cnt->content_size.y += style->container_padding.top;
+  // cnt->content_size.y += style->container_padding.top;
   cnt->content_size.y += style->container_padding.bottom;
   /* pop container, layout and id */
   pop(ctx->container_stack);
@@ -1426,11 +1426,11 @@ static void push_container_body(mu_Context *ctx, mu_Container *cnt, mu_Rect body
   // push_layout(ctx, expand_rect(body, ctx->style->container_padding), cnt->scroll);
   body.x += ctx->style->container_padding.left;
   body.w -= ctx->style->container_padding.left;
-  body.w -= ctx->style->container_padding.right;
+  // body.w -= ctx->style->container_padding.right;
 
   body.y += ctx->style->container_padding.top;
   body.h -= ctx->style->container_padding.top;
-  body.h -= ctx->style->container_padding.bottom;
+  // body.h -= ctx->style->container_padding.bottom;
 
   push_layout(ctx, body, cnt->scroll);
   cnt->body = body;
