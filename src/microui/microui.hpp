@@ -220,6 +220,10 @@ typedef struct {
   char max[5];
 } mu_IconsUtf8;
 
+struct mu_Box {
+  int top, right, bottom, left;
+};
+
 typedef struct {
   mu_Font font;
   int font_size;
@@ -228,8 +232,10 @@ typedef struct {
   mu_IconsUtf8 icons_utf8;
 
   mu_Vec2 size;
-  int padding;
-  int spacing;
+  mu_Box padding;
+  // margin box model: margin is included in the calculated element size!
+  // margin has 2 values: horizontal and vertical (x,y)
+  mu_Vec2 margin;
   int indent;
   int title_height;
   int footer_height;

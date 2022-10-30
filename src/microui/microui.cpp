@@ -94,13 +94,13 @@ static mu_Style default_style = {
     12,                             /* icon_font_size */
     {{0}, {0}, {0}, {0}, {0}, {0}}, /* icons_utf8 */
     {{68, 44}},                     /* size */
-    0,
-    10,
-    24, /* padding, spacing, indent */
-    24,
-    20, /* title_height, footer_height */
-    12,
-    8, /* scrollbar_size, thumb_size */
+    {0, 0, 0, 0},                   // padding
+    {10, 10},                       // margin
+    24,                             // indent
+    24,                             // title_height
+    20,                             // footer_height
+    12,                             // scrollbar_size
+    8,                              // thumb_size
     {
         {230, 230, 230, 255}, /* MU_COLOR_TEXT */
         {25, 25, 25, 255},    /* MU_COLOR_BORDER */
@@ -242,6 +242,10 @@ mu_Color mu_color(int r, int g, int b, int a) {
 
 static mu_Rect expand_rect(mu_Rect rect, int n) {
   return mu_rect(rect.x - n, rect.y - n, rect.w + n * 2, rect.h + n * 2);
+}
+
+static mu_Rect expand_rect(mu_Rect rect, mu_Box box) {
+  return mu_rect(rect.x - box.top, rect.y - box.top, rect.w + box.left + box.right, rect.h + box.top + box.bottom);
 }
 
 static mu_Rect intersect_rects(mu_Rect r1, mu_Rect r2) {
@@ -490,8 +494,8 @@ mu_Layout *mu_get_layout(mu_Context *ctx) { return &ctx->layout_stack.back(); }
 static void pop_container(mu_Context *ctx) {
   mu_Container *cnt = mu_get_current_container(ctx);
   mu_Layout *layout = mu_get_layout(ctx);
-  cnt->content_size.x = layout->max.x - layout->body.x + ctx->style->spacing;
-  cnt->content_size.y = layout->max.y - layout->body.y + ctx->style->spacing;
+  cnt->content_size.x = layout->max.x - layout->body.x + ctx->style->margin.x;
+  cnt->content_size.y = layout->max.y - layout->body.y + ctx->style->margin.y;
   /* pop container, layout and id */
   pop(ctx->container_stack);
   pop(ctx->layout_stack);
@@ -854,8 +858,8 @@ mu_Rect mu_layout_next(mu_Context *ctx) {
     }
 
     /* position */
-    res.x = layout->position.x + style->spacing;
-    res.y = layout->position.y + style->spacing;
+    res.x = layout->position.x + style->margin.x;
+    res.y = layout->position.y + style->margin.y;
 
     /* size */
     if(layout->next_size.has_value()) {
@@ -869,10 +873,10 @@ mu_Rect mu_layout_next(mu_Context *ctx) {
       res.h = layout->size.y;
     }
     if(res.w == 0) {
-      res.w = style->size.x + style->padding * 2;
+      res.w = style->size.x + style->padding.left + style->padding.right;
     }
     if(res.h == 0) {
-      res.h = style->size.y + style->padding * 2;
+      res.h = style->size.y + style->padding.top + style->padding.bottom;
     }
     if(res.w < 0) {
       res.w += layout->body.w - res.x + 1;
@@ -880,16 +884,16 @@ mu_Rect mu_layout_next(mu_Context *ctx) {
     if(res.h < 0) {
       res.h += layout->body.h - res.y + 1;
     }
-    // subtracting spacing: it's taken into account (margin-box box model)
-    res.w -= style->spacing * 2;
-    res.h -= style->spacing * 2;
+    // subtracting margin: it's taken into account (margin-box box model)
+    res.w -= style->margin.x * 2;
+    res.h -= style->margin.y * 2;
 
     layout->item_index++;
   }
 
   /* update position */
-  layout->position.x += res.w + style->spacing * 2;
-  layout->next_row = mu_max(layout->next_row, res.y + res.h + style->spacing);
+  layout->position.x += res.w + style->margin.x * 2;
+  layout->next_row = mu_max(layout->next_row, res.y + res.h + style->margin.y);
 
   /* apply body offset */
   res.x += layout->body.x;
@@ -947,9 +951,9 @@ void mu_draw_control_text(mu_Context *ctx, const char *str, mu_Rect rect, int co
   if(opt & MU_OPT_ALIGNCENTER) {
     pos.x = rect.x + (rect.w - tw) / 2;
   } else if(opt & MU_OPT_ALIGNRIGHT) {
-    pos.x = rect.x + rect.w - tw - ctx->style->padding;
+    pos.x = rect.x + rect.w - tw - ctx->style->padding.left;
   } else {
-    pos.x = rect.x + ctx->style->padding;
+    pos.x = rect.x + ctx->style->padding.left;
   }
   mu_draw_text(ctx, font, font_size, str, -1, pos, ctx->style->colors[colorid]);
   mu_pop_clip_rect(ctx);
@@ -1133,8 +1137,8 @@ int mu_textbox_raw(mu_Context *ctx, char *buf, int bufsz, mu_Id id, mu_Rect r, i
     int font_size = ctx->style->font_size;
     int textw = ctx->text_width(font, font_size, buf, -1);
     int texth = ctx->text_height(font, font_size);
-    int ofx = r.w - ctx->style->padding - textw - 1;
-    int textx = r.x + mu_min(ofx, ctx->style->padding);
+    int ofx = r.w - ctx->style->padding.left - textw - 1;
+    int textx = r.x + mu_min(ofx, ctx->style->padding.left);
     int texty = r.y + (r.h - texth) / 2;
     mu_push_clip_rect(ctx, r);
     mu_draw_text(ctx, font, font_size, buf, -1, mu_vec2(textx, texty), color);
@@ -1254,8 +1258,8 @@ static int header(mu_Context *ctx, const char *label, int istreenode, int opt) {
   }
   mu_draw_icon(ctx, expanded ? MU_ICON_EXPANDED : MU_ICON_COLLAPSED, mu_rect(r.x, r.y, r.h, r.h),
                ctx->style->colors[MU_COLOR_TEXT]);
-  r.x += r.h - ctx->style->padding;
-  r.w -= r.h - ctx->style->padding;
+  r.x += r.h - ctx->style->padding.left;
+  r.w -= r.h - ctx->style->padding.left;
   mu_draw_control_text(ctx, label, r, MU_COLOR_TEXT, 0);
 
   draw_focus(ctx, id, r);
@@ -1333,8 +1337,8 @@ static void scrollbar(mu_Context *ctx, mu_Container *cnt, mu_Rect *b, mu_Vec2 cs
 static void scrollbars(mu_Context *ctx, mu_Container *cnt, mu_Rect *body) {
   int sz = ctx->style->scrollbar_size;
   mu_Vec2 cs = cnt->content_size;
-  cs.x += ctx->style->padding * 2;
-  cs.y += ctx->style->padding * 2;
+  cs.x += ctx->style->padding.left + ctx->style->padding.right;
+  cs.y += ctx->style->padding.top + ctx->style->padding.bottom;
   mu_push_clip_rect(ctx, *body);
   /* resize body to make room for scrollbars */
   if(cs.y > cnt->body.h) {
@@ -1352,7 +1356,7 @@ static void push_container_body(mu_Context *ctx, mu_Container *cnt, mu_Rect body
   if(~opt & MU_OPT_NOSCROLL) {
     scrollbars(ctx, cnt, &body);
   }
-  push_layout(ctx, expand_rect(body, -ctx->style->padding), cnt->scroll);
+  push_layout(ctx, expand_rect(body, ctx->style->padding), cnt->scroll);
   cnt->body = body;
   vgir_push_scissor(ctx->vgir, cnt->body.x, cnt->body.y, cnt->body.w, cnt->body.h);
   if(mu_mouse_over(ctx, body)) {
