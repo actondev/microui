@@ -9,6 +9,7 @@
 
 #include <aod/vgir.h>
 #include <functional>
+#include <optional>
 #include <stdbool.h>
 #include <variant>
 #include <vector>
@@ -135,21 +136,24 @@ typedef unsigned mu_Id;
 typedef MU_REAL mu_Real;
 typedef int mu_Font;
 
-typedef union {
-  struct {
-    int x, y;
+struct mu_Vec2 {
+  union {
+    struct {
+      float x, y;
+    };
+    float data[2];
   };
-  int data[2];
-} mu_Vec2;
-typedef union {
-  struct {
-    int x, y, w, h;
+};
+struct mu_Rect {
+  union {
+    struct {
+      float x, y, w, h;
+    };
+    float data[4];
   };
-  int data[4];
-} mu_Rect;
-typedef struct {
+};
+struct mu_Color {
   unsigned char r, g, b, a;
-} mu_Color;
 };
 struct mu_PoolItem {
   mu_Id id{0};
@@ -233,7 +237,7 @@ typedef struct {
   mu_IconsUtf8 icons_utf8;
 
   mu_Vec2 size;
-  mu_Box padding;
+  mu_Box container_padding;
   // margin box model: margin is included in the calculated element size!
   // margin has 2 values: horizontal and vertical (x,y)
   mu_Vec2 margin;
@@ -247,8 +251,8 @@ typedef struct {
 
 struct mu_Context;
 
-mu_Vec2 mu_vec2(int x, int y);
-mu_Rect mu_rect(int x, int y, int w, int h);
+mu_Vec2 mu_vec2(float x, float y);
+mu_Rect mu_rect(float x, float y, float w, float h);
 mu_Color mu_color(int r, int g, int b, int a);
 
 mu_Context *mu_init(vgir_ctx *);
@@ -258,8 +262,8 @@ void mu_free(mu_Context *ctx);
 using mu_TextWidthCb = std::function<int(mu_Font, int font_size, const char *str, int len)>;
 using mu_TextHeightCb = std::function<int(mu_Font, int font_size)>;
 #else
-using mu_TextWidthCb = int (*)(mu_Font font, int font_size, const char *str, int len);
-using mu_TextHeightCb = int (*)(mu_Font font, int font_size);
+using mu_TextWidthCb = float (*)(mu_Font font, int font_size, const char *str, int len);
+using mu_TextHeightCb = float (*)(mu_Font font, int font_size);
 #endif
 
 void mu_set_text_width_cb(mu_Context *ctx, mu_TextWidthCb);
@@ -281,6 +285,7 @@ mu_Rect mu_get_clip_rect(mu_Context *ctx);
 int mu_check_clip(mu_Context *ctx, mu_Rect r);
 mu_Container *mu_get_current_container(mu_Context *ctx);
 mu_Container *mu_get_container(mu_Context *ctx, const char *name);
+mu_Vec2 mu_get_current_container_size(mu_Context *ctx);
 void mu_bring_to_front(mu_Context *ctx, mu_Container *cnt);
 mu_Style *mu_get_style(mu_Context *ctx);
 

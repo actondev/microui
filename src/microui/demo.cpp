@@ -28,10 +28,10 @@ static void test_window(mu_Context *ctx) {
       char buf[64];
       mu_layout_row(ctx, 2, (const int[]){54, -1}, 0);
       mu_label(ctx, "Position:");
-      sprintf(buf, "%d, %d", win->rect.x, win->rect.y);
+      sprintf(buf, "%d, %d", (int)win->rect.x, (int)win->rect.y);
       mu_label(ctx, buf);
       mu_label(ctx, "Size:");
-      sprintf(buf, "%d, %d", win->rect.w, win->rect.h);
+      sprintf(buf, "%d, %d", (int)win->rect.w, (int)win->rect.h);
       mu_label(ctx, buf);
     }
 
@@ -119,7 +119,7 @@ static void test_window(mu_Context *ctx) {
       mu_checkbox(ctx, "use button for the right layout", &do_button);
       int content_height = 10;
       mu_Style *style = mu_get_style(ctx);
-      int row_height = 3 * (10 * content_height + style->padding.top + style->padding.bottom + style->margin.y);
+      int row_height = 3 * (10 * content_height + style->margin.y);
       (void)row_height;
       // we either pass the calculated row_height from above, or 0 (for default height)
       // In the second case, we need to calculate & set the layout height (as done below).
