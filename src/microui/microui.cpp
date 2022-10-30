@@ -459,16 +459,43 @@ void mu_pop_id(mu_Context *ctx) { pop(ctx->id_stack); }
 
 mu_Id mu_get_current_id(mu_Context *ctx) { return ctx->cur_id; }
 
-void mu_push_clip_rect(mu_Context *ctx, mu_Rect rect) {
-  mu_Rect last = mu_get_clip_rect(ctx);
-  push(ctx->clip_stack, intersect_rects(rect, last));
+constexpr bool NOCLIP{false};
+
+void mu_push_clip_rect(mu_Context *ctx, mu_Rect rect, bool intersect) {
+  if constexpr(NOCLIP)
+    return;
+  if(intersect) {
+    mu_Rect last = mu_get_clip_rect(ctx);
+    push(ctx->clip_stack, intersect_rects(rect, last));
+  } else {
+    push(ctx->clip_stack, rect);
+  }
 }
 
-void mu_pop_clip_rect(mu_Context *ctx) { pop(ctx->clip_stack); }
+void mu_pop_clip_rect(mu_Context *ctx) {
+  if constexpr(NOCLIP)
+    return;
+  pop(ctx->clip_stack);
+}
 
 mu_Rect mu_get_clip_rect(mu_Context *ctx) {
+  if constexpr(NOCLIP) {
+    return unclipped_rect;
+  }
   expect(!ctx->clip_stack.empty());
   return ctx->clip_stack.back();
+}
+
+static void mu_push_clip_draw(mu_Context *ctx, mu_Rect rect) {
+  if constexpr(NOCLIP)
+    return;
+  vgir_push_scissor(ctx->vgir, rect.x, rect.y, rect.w, rect.h);
+}
+
+static void mu_pop_clip_draw(mu_Context *ctx) {
+  if constexpr(NOCLIP)
+    return;
+  vgir_pop_scissor(ctx->vgir);
 }
 
 int mu_check_clip(mu_Context *ctx, mu_Rect r) {
@@ -515,7 +542,7 @@ static void pop_container(mu_Context *ctx) {
   pop(ctx->container_stack);
   pop(ctx->layout_stack);
   mu_pop_id(ctx);
-  vgir_pop_scissor(ctx->vgir);
+  mu_pop_clip_draw(ctx);
 }
 
 mu_Container *mu_get_current_container(mu_Context *ctx) {
@@ -698,16 +725,6 @@ void mu_input_text(mu_Context *ctx, const char *text) {
   expect(len + size <= (int)sizeof(ctx->input_text));
   memcpy(ctx->input_text + len, text, size);
 }
-
-/*============================================================================
-** Clip
-**============================================================================*/
-
-static void mu_push_clip_draw(mu_Context *ctx, mu_Rect rect) {
-  vgir_push_scissor(ctx->vgir, rect.x, rect.y, rect.w, rect.h);
-}
-
-static void mu_pop_clip_draw(mu_Context *ctx) { vgir_pop_scissor(ctx->vgir); }
 
 /*============================================================================
 ** Drawing
@@ -1387,7 +1404,7 @@ static void push_container_body(mu_Context *ctx, mu_Container *cnt, mu_Rect body
 
   push_layout(ctx, body, cnt->scroll);
   cnt->body = body;
-  vgir_push_scissor(ctx->vgir, cnt->body.x, cnt->body.y, cnt->body.w, cnt->body.h);
+  mu_push_clip_draw(ctx, cnt->body);
   if(mu_mouse_over(ctx, body)) {
     ctx->hovered_container_stack.push_back(cnt->id);
   }
@@ -1413,7 +1430,9 @@ static void begin_root_container(mu_Context *ctx, mu_Container *cnt) {
   /* clipping is reset here in case a root-container is made within
   ** another root-containers's begin/end block; this prevents the inner
   ** root-container being clipped to the outer */
-  push(ctx->clip_stack, unclipped_rect);
+
+  // pushing clip WITHOUT inresecting with current clip
+  mu_push_clip_rect(ctx, unclipped_rect, false);
 }
 
 static void end_root_container(mu_Context *ctx) {
