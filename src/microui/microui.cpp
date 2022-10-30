@@ -82,6 +82,8 @@ inline void pop(std::vector<T> &stk) {
   stk.pop_back();
 }
 
+mu_Vec2 operator+(const mu_Vec2 &lhs, const mu_Vec2 &rhs) { return {lhs.x + rhs.x, lhs.y + rhs.y}; }
+
 static mu_Rect unclipped_rect = {{0, 0, 0x1000000, 0x1000000}};
 
 static mu_Style default_style = {
@@ -1554,6 +1556,11 @@ void mu_begin_panel_ex(mu_Context *ctx, const char *name, int opt) {
   mu_Id id = mu_get_id(ctx, name, strlen(name));
   mu_push_id(ctx, id);
   cnt = get_container(ctx, ctx->cur_id, opt);
+  if(opt & MU_OPT_AUTOSIZE) {
+    opt |= MU_OPT_NOSCROLL;
+    mu_layout_set_next_size(ctx, cnt->content_size + ctx->style->margin);
+  }
+
   cnt->rect = mu_layout_next(ctx);
   if(~opt & MU_OPT_NOFRAME) {
     ctx->draw_frame(ctx, cnt->rect, MU_COLOR_PANELBG);
