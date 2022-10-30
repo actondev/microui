@@ -1483,23 +1483,25 @@ int mu_begin_window_ex(mu_Context *ctx, const char *title, mu_Rect rect, int opt
   }
 
   /* do `resize` notch */
-  if(~opt & MU_OPT_NORESIZE) {
+  if(~opt & MU_OPT_NOFOOTER) {
     int sz = ctx->style->footer_height;
-    mu_Id id = mu_get_id(ctx, "!resize", 7);
     footer_rect.x = rect.x;
     footer_rect.y = rect.y + rect.h - sz;
     footer_rect.w = rect.w;
     footer_rect.h = sz;
     ctx->draw_frame(ctx, footer_rect, MU_COLOR_FOOTERBG);
-    mu_Rect r = mu_rect(rect.x + rect.w - sz, rect.y + rect.h - sz, sz, sz);
-    mu_update_control(ctx, id, r, opt);
-    mu_draw_icon(ctx, MU_ICON_RESIZE, r, ctx->style->colors[MU_COLOR_TEXT]);
-    draw_focus(ctx, id, r);
-    if(id == ctx->focus && ctx->mouse_down == MU_MOUSE_LEFT) {
-      cnt->rect.w += ctx->mouse_delta.x;
-      cnt->rect.h += ctx->mouse_delta.y;
-      cnt->rect.w = mu_max(96, cnt->rect.w);
-      cnt->rect.h = mu_max(64, cnt->rect.h);
+    if(~opt & MU_OPT_NORESIZE) {
+      mu_Id id = mu_get_id(ctx, "!resize", 7);
+      mu_Rect r = mu_rect(rect.x + rect.w - sz, rect.y + rect.h - sz, sz, sz);
+      mu_update_control(ctx, id, r, opt);
+      mu_draw_icon(ctx, MU_ICON_RESIZE, r, ctx->style->colors[MU_COLOR_TEXT]);
+      draw_focus(ctx, id, r);
+      if(id == ctx->focus && ctx->mouse_down == MU_MOUSE_LEFT) {
+        cnt->rect.w += ctx->mouse_delta.x;
+        cnt->rect.h += ctx->mouse_delta.y;
+        cnt->rect.w = mu_max(96, cnt->rect.w);
+        cnt->rect.h = mu_max(64, cnt->rect.h);
+      }
     }
     body.h -= sz;
   }
