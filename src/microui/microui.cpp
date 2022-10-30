@@ -1242,7 +1242,7 @@ static int header(mu_Context *ctx, const char *label, int istreenode, int opt) {
     if(active) {
       mu_pool_update(ctx, ctx->treenode_pool, idx);
     } else {
-      memset(&ctx->treenode_pool[idx], 0, sizeof(mu_PoolItem));
+      ctx->treenode_pool[idx] = mu_PoolItem();
     }
   } else if(active) {
     mu_pool_init(ctx, ctx->treenode_pool, MU_TREENODEPOOL_SIZE, id);

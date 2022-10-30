@@ -150,10 +150,11 @@ typedef union {
 typedef struct {
   unsigned char r, g, b, a;
 } mu_Color;
-typedef struct {
-  mu_Id id;
-  int last_update;
-} mu_PoolItem;
+};
+struct mu_PoolItem {
+  mu_Id id{0};
+  int last_update{0};
+};
 
 typedef struct {
   int type, size;
