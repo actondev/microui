@@ -935,10 +935,10 @@ mu_Rect mu_layout_next(mu_Context *ctx) {
     }
 
     if(res.w < 0) {
-      res.w += layout->body.w - res.x + 1;
+      res.w += layout->body.w - res.x + style->margin.x;
     }
     if(res.h < 0) {
-      res.h += layout->body.h - res.y + 1;
+      res.h += layout->body.h - res.y + style->margin.y;
     }
     // The returned rect's width & height are WITHOUT the margin
     // subtracting margin: it's taken into account (margin-box box model)
