@@ -96,7 +96,7 @@ static mu_Style default_style = {
     12,                             /* icon_font_size */
     {{0}, {0}, {0}, {0}, {0}, {0}}, /* icons_utf8 */
     {{68, 22}},                     // internal size (without margins)
-    // {20, 20, 20, 20},               // container padding
+    // {0, 0, 0, 0},                   // padding
     {10, 10, 10, 10}, // padding
     {10, 10},         // margin
     24,               // indent
@@ -524,17 +524,14 @@ mu_Layout *mu_get_layout(mu_Context *ctx) { return &ctx->layout_stack.back(); }
 static void pop_container(mu_Context *ctx) {
   mu_Container *cnt = mu_get_current_container(ctx);
   mu_Layout *layout = mu_get_layout(ctx);
-  auto style = ctx->style;
-  // Adding margin: last element's margin should be included in the content size.
-  // Otherwise, when having scrollbars, the last element would not have any margin (would touch the container's end)
-  cnt->content_size.x = layout->max.x - layout->body.x;
-  // TODO horizontal scrollbar showing for no reason?
-  // cnt->content_size.x += style->container_padding.left;
-  cnt->content_size.x += style->container_padding.right;
 
+  // TODO handle padding correctly
+  const auto &padding = ctx->style->container_padding;
+  // cnt->content_size.x = layout->max.x - layout->body.x - padding.left - padding.right;
+  // cnt->content_size.y = layout->max.y - layout->body.y - padding.top - padding.bottom;
+  cnt->content_size.x = layout->max.x - layout->body.x;
   cnt->content_size.y = layout->max.y - layout->body.y;
-  // cnt->content_size.y += style->container_padding.top;
-  cnt->content_size.y += style->container_padding.bottom;
+
   /* pop container, layout and id */
   pop(ctx->container_stack);
   pop(ctx->layout_stack);
@@ -890,6 +887,12 @@ void mu_layout_align(mu_Context *ctx, int align) {
   next_row(ctx, layout);
 }
 
+/// Update layout max position
+static void layout_absorb(mu_Layout *layout, mu_Rect rect) {
+  layout->max.x = mu_max(layout->max.x, rect.x + rect.w);
+  layout->max.y = mu_max(layout->max.y, rect.y + rect.h);
+}
+
 mu_Rect mu_layout_next(mu_Context *ctx) {
   mu_Layout *layout = mu_get_layout(ctx);
   mu_Style *style = ctx->style;
@@ -920,7 +923,7 @@ mu_Rect mu_layout_next(mu_Context *ctx) {
       res.h = next_size.y;
       layout->next_size = std::nullopt;
     } else {
-      // Note: if layout items are set (ie their widths), this width includes padding
+      // Note: if layout items are set (ie their widths), this width includes margin
       res.w = layout->items > 0 ? layout->widths[layout->item_index] : layout->size.x;
       res.h = layout->size.y;
     }
@@ -967,9 +970,7 @@ mu_Rect mu_layout_next(mu_Context *ctx) {
     res.y = anchor - relative - res.h;
   }
 
-  /* update max position */
-  layout->max.x = mu_max(layout->max.x, res.x + res.w);
-  layout->max.y = mu_max(layout->max.y, res.y + res.h);
+  layout_absorb(layout, res);
 
   return (ctx->last_rect = res);
 }
@@ -1352,7 +1353,7 @@ void mu_end_treenode(mu_Context *ctx) {
   mu_pop_id(ctx);
 }
 
-static void scrollbar(mu_Context *ctx, mu_Container *cnt, mu_Rect *b, mu_Vec2 cs, int axis) {
+static void scrollbar(mu_Context *ctx, mu_Container *cnt, mu_Rect body, mu_Vec2 cs, int axis) {
   static const char *scrollbar_ids[] = {
       "!scrollbarx",
       "!scrollbary",
@@ -1364,8 +1365,8 @@ static void scrollbar(mu_Context *ctx, mu_Container *cnt, mu_Rect *b, mu_Vec2 cs
   int size = axis + 2; // x->w, y->h. size means height
 
   /* only add scrollbar if content size is larger than body */
-  int maxscroll = cs.data[axis] - b->data[size]; // ie cs.y - b->h
-  if(maxscroll <= 0 || b->data[size] <= 0) {
+  int maxscroll = cs.data[axis] - body.data[size]; // ie cs.y - body.h
+  if(maxscroll <= 0 || body.data[size] <= 0) {
     cnt->scroll.data[axis] = 0;
     return;
   }
@@ -1375,9 +1376,9 @@ static void scrollbar(mu_Context *ctx, mu_Container *cnt, mu_Rect *b, mu_Vec2 cs
   /* get sizing / positioning */
   int other_axis = !axis;          // otheraxis (x)
   int other_size = other_axis + 2; // width
-  base = *b;
-  // base.x = b->w + b->w. The scrollbar position
-  base.data[other_axis] = b->data[other_axis] + b->data[other_size];
+  base = body;
+  // base.x = body.x + body.w. The scrollbar position
+  base.data[other_axis] = body.data[other_axis] + body.data[other_size];
   base.data[other_size] = ctx->style->scrollbar_size; // base.w
 
   /* handle input */
@@ -1391,50 +1392,65 @@ static void scrollbar(mu_Context *ctx, mu_Container *cnt, mu_Rect *b, mu_Vec2 cs
   /* draw base and thumb */
   ctx->draw_frame(ctx, base, MU_COLOR_SCROLLBASE);
   thumb = base;
-  thumb.data[size] = mu_max(ctx->style->thumb_size, base.data[size] * b->data[size] / cs.data[axis]);
+  thumb.data[size] = mu_max(ctx->style->thumb_size, base.data[size] * body.data[size] / cs.data[axis]);
   thumb.data[axis] += cnt->scroll.data[axis] * (base.data[size] - thumb.data[size]) / maxscroll;
   ctx->draw_frame(ctx, thumb, MU_COLOR_SCROLLTHUMB);
 
   /* set this as the scroll_target (will get scrolled on mousewheel) */
   /* if the mouse is over it */
-  if(mu_mouse_over(ctx, *b)) {
+  if(mu_mouse_over(ctx, body)) {
     ctx->scroll_target = cnt;
   }
   draw_focus(ctx, id, base);
 }
 
-static void scrollbars(mu_Context *ctx, mu_Container *cnt, mu_Rect *body) {
+static mu_Vec2 scrollbars(mu_Context *ctx, mu_Container *cnt, mu_Rect body) {
+  mu_Vec2 scrollbar_size{0, 0};
   int sz = ctx->style->scrollbar_size;
+  const auto &padding = ctx->style->container_padding;
   mu_Vec2 cs = cnt->content_size;
-  mu_push_clip_rect(ctx, *body);
+
+  mu_push_clip_rect(ctx, body);
   /* resize body to make room for scrollbars */
   if(cs.y > cnt->body.h) {
-    body->w -= sz;
+    scrollbar_size.x = sz;
+    body.w -= sz;
   }
   if(cs.x > cnt->body.w) {
-    body->h -= sz;
+    scrollbar_size.y = sz;
+    body.h -= sz;
   }
+
+  cs.x += padding.left + padding.right;
+  cs.y += padding.top + padding.bottom;
+
   scrollbar(ctx, cnt, body, cs, MU_AXIS_Y);
   scrollbar(ctx, cnt, body, cs, MU_AXIS_X);
   mu_pop_clip_rect(ctx);
+  return scrollbar_size;
 }
 
 static void push_container_body(mu_Context *ctx, mu_Container *cnt, mu_Rect body, int opt) {
+  mu_Vec2 scrollbar_size{0, 0};
+  const auto &padding = ctx->style->container_padding;
   if(~opt & MU_OPT_NOSCROLL) {
-    scrollbars(ctx, cnt, &body);
+    scrollbar_size = scrollbars(ctx, cnt, body);
   }
-  // push_layout(ctx, expand_rect(body, ctx->style->container_padding), cnt->scroll);
-  body.x += ctx->style->container_padding.left;
-  body.w -= ctx->style->container_padding.left;
-  // body.w -= ctx->style->container_padding.right;
+  body.w -= scrollbar_size.x;
+  body.h -= scrollbar_size.y;
 
-  body.y += ctx->style->container_padding.top;
-  body.h -= ctx->style->container_padding.top;
-  // body.h -= ctx->style->container_padding.bottom;
+  mu_Layout *layout = mu_get_layout(ctx);
 
-  push_layout(ctx, body, cnt->scroll);
-  cnt->body = body;
-  mu_push_clip_draw(ctx, cnt->body);
+  mu_Rect content = body;
+  content.x += padding.left;
+  content.y += padding.top;
+  content.w -= (padding.left + padding.right);
+  content.h -= (padding.top + padding.bottom);
+  push_layout(ctx, content, cnt->scroll);
+  cnt->body = content;
+
+  mu_push_clip_draw(ctx, body);
+
   if(mu_mouse_over(ctx, body)) {
     ctx->hovered_container_stack.push_back(cnt->id);
   }
