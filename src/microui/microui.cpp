@@ -856,7 +856,7 @@ void mu_layout_row(mu_Context *ctx, int items, const int *widths, int height) {
   }
   layout->items = items;
   const auto margin = ctx->style->margin;
-  layout->position = mu_vec2(layout->indent - margin.x / 2.f, layout->next_row - margin.y / 2.f);
+  layout->position = mu_vec2(layout->indent, layout->next_row);
   layout->size.y = height;
   layout->item_index = 0;
 }
@@ -913,8 +913,8 @@ mu_Rect mu_layout_next(mu_Context *ctx) {
     }
 
     /* position */
-    res.x = layout->position.x + style->margin.x / 2.f;
-    res.y = layout->position.y + style->margin.y / 2.f;
+    res.x = layout->position.x;
+    res.y = layout->position.y;
 
     /* size */
     if(layout->next_size.has_value()) {
