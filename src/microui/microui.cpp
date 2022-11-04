@@ -66,6 +66,8 @@
     }                                                                                                                  \
   } while(0)
 
+namespace vgir = aod::vgir;
+
 template <typename T>
 inline void push(std::vector<T> &stk, T &&val) {
   stk.push_back(val);
@@ -147,7 +149,7 @@ struct EventHandlerWrapper {
 };
 
 struct mu_Context {
-  vgir_ctx *vgir;
+  vgir::Ctx *vgir;
   vgir_jump_t vgir_begin, vgir_end; // begin: head, end: tail
   /* callbacks */
   mu_TextWidthCb text_width;
@@ -203,7 +205,7 @@ struct mu_Context {
   int key_pressed{0};
   char input_text[32];
 
-  mu_Context(vgir_ctx *vgir) : vgir(vgir) {
+  mu_Context(vgir::Ctx *vgir) : vgir(vgir) {
     expect(vgir);
     root_list.reserve(MU_ROOTLIST_SIZE);
     container_stack.reserve(MU_CONTAINERSTACK_SIZE);
@@ -279,13 +281,13 @@ static void default_draw_frame(mu_Context *ctx, mu_Rect rect, int colorid) {
   }
 }
 
-mu_Context *mu_init(vgir_ctx *vgir) { return new mu_Context(vgir); }
+mu_Context *mu_init(vgir::Ctx *vgir) { return new mu_Context(vgir); }
 
 void mu_free(mu_Context *ctx) { delete ctx; }
 
-void mu_set_vgir(mu_Context *ctx, vgir_ctx *vgir) { ctx->vgir = vgir; }
+void mu_set_vgir(mu_Context *ctx, vgir::Ctx *vgir) { ctx->vgir = vgir; }
 
-vgir_ctx *mu_get_vgir(mu_Context *ctx) { return ctx->vgir; }
+vgir::Ctx *mu_get_vgir(mu_Context *ctx) { return ctx->vgir; }
 
 void mu_set_text_width_cb(mu_Context *ctx, mu_TextWidthCb cb) { ctx->text_width = cb; }
 
@@ -406,16 +408,16 @@ void mu_end(mu_Context *ctx) {
   std::sort(ctx->root_list.begin(), ctx->root_list.end(),
             [&](const auto a, const auto b) { return a->zindex < b->zindex; });
 
-  vgir_ctx *vgir = ctx->vgir;
+  auto vgir = ctx->vgir;
   mu_Container *first = ctx->root_list[0];
-  vgir_set_jump_dst(vgir, ctx->vgir_begin, first->vgir_begin);
+  vgir::set_jump_dst(vgir, ctx->vgir_begin, first->vgir_begin);
   for(i = 0; i < n - 1; i++) {
     mu_Container *current = ctx->root_list[i];
     mu_Container *next = ctx->root_list[i + 1];
-    vgir_set_jump_dst(vgir, current->vgir_end, next->vgir_begin);
+    vgir::set_jump_dst(vgir, current->vgir_end, next->vgir_begin);
   }
   mu_Container *last = ctx->root_list[n - 1];
-  vgir_set_jump_dst(vgir, last->vgir_end, ctx->vgir_end);
+  vgir::set_jump_dst(vgir, last->vgir_end, ctx->vgir_end);
 }
 
 void mu_set_focus(mu_Context *ctx, mu_Id id) {
@@ -488,13 +490,13 @@ mu_Rect mu_get_clip_rect(mu_Context *ctx) {
 static void mu_push_clip_draw(mu_Context *ctx, mu_Rect rect) {
   if constexpr(NOCLIP)
     return;
-  vgir_push_scissor(ctx->vgir, rect.x, rect.y, rect.w, rect.h);
+  vgir::push_scissor(ctx->vgir, rect.x, rect.y, rect.w, rect.h);
 }
 
 static void mu_pop_clip_draw(mu_Context *ctx) {
   if constexpr(NOCLIP)
     return;
-  vgir_pop_scissor(ctx->vgir);
+  vgir::pop_scissor(ctx->vgir);
 }
 
 int mu_check_clip(mu_Context *ctx, mu_Rect r) {
@@ -729,10 +731,10 @@ void mu_draw_rect(mu_Context *ctx, mu_Rect rect, mu_Color color) {
   rect = intersect_rects(rect, mu_get_clip_rect(ctx));
   if(rect.w <= 0 || rect.h <= 0)
     return;
-  vgir_begin_path(ctx->vgir);
-  vgir_fill_color(ctx->vgir, color.r / 255.0, color.g / 255.0, color.b / 255.0, color.a / 255.0);
-  vgir_rect(ctx->vgir, rect.x, rect.y, rect.w, rect.h);
-  vgir_fill(ctx->vgir);
+  vgir::begin_path(ctx->vgir);
+  vgir::fill_color(ctx->vgir, color.r / 255.0, color.g / 255.0, color.b / 255.0, color.a / 255.0);
+  vgir::rect(ctx->vgir, rect.x, rect.y, rect.w, rect.h);
+  vgir::fill(ctx->vgir);
 }
 
 void mu_draw_box(mu_Context *ctx, mu_Rect rect, mu_Color color) {
@@ -741,12 +743,12 @@ void mu_draw_box(mu_Context *ctx, mu_Rect rect, mu_Color color) {
   if(intersected.w <= 0 || intersected.h <= 0)
     return;
 
-  vgir_ctx *vgir = ctx->vgir;
-  vgir_begin_path(vgir);
-  vgir_stroke_color(vgir, color.r / 255.0, color.g / 255.0, color.b / 255.0, color.a / 255.0);
-  vgir_stroke_width(vgir, 1);
-  vgir_rect(vgir, rect.x, rect.y, rect.w, rect.h);
-  vgir_stroke(vgir);
+  auto vgir = ctx->vgir;
+  vgir::begin_path(vgir);
+  vgir::stroke_color(vgir, color.r / 255.0, color.g / 255.0, color.b / 255.0, color.a / 255.0);
+  vgir::stroke_width(vgir, 1);
+  vgir::rect(vgir, rect.x, rect.y, rect.w, rect.h);
+  vgir::stroke(vgir);
 }
 
 void mu_draw_text(mu_Context *ctx, mu_Font font, int font_size, const char *str, int len, mu_Vec2 pos, mu_Color color) {
@@ -755,8 +757,9 @@ void mu_draw_text(mu_Context *ctx, mu_Font font, int font_size, const char *str,
   if(clipped == MU_CLIP_ALL) {
     return;
   }
+  auto vgir = ctx->vgir;
 
-  vgir_begin_path(ctx->vgir); // before clipping!
+  vgir::begin_path(ctx->vgir); // before clipping!
   if(clipped == MU_CLIP_PART) {
     mu_push_clip_draw(ctx, mu_get_clip_rect(ctx));
   }
@@ -764,15 +767,14 @@ void mu_draw_text(mu_Context *ctx, mu_Font font, int font_size, const char *str,
   if(len < 0) {
     len = strlen(str);
   }
-  vgir_begin_path(ctx->vgir);
-  vgir_ctx *vgir = ctx->vgir;
-  vgir_font_face_id(vgir, font);
-  vgir_font_size(vgir, font_size);
-  vgir_fill_color(ctx->vgir, color.r / 255.0, color.g / 255.0, color.b / 255.0, color.a / 255.0);
+  vgir::begin_path(ctx->vgir);
+  vgir::font_face_id(vgir, font);
+  vgir::font_size(vgir, font_size);
+  vgir::fill_color(ctx->vgir, color.r / 255.0, color.g / 255.0, color.b / 255.0, color.a / 255.0);
   const char *end = str + len;
-  vgir_text_align(vgir, (vgir_align)(LEFT | TOP));
-  vgir_text(vgir, pos.x, pos.y, str, end);
-  vgir_fill(vgir);
+  vgir::text_align(vgir, vgir::Align(LEFT | TOP));
+  vgir::text(vgir, pos.x, pos.y, str, end);
+  vgir::fill(vgir);
 
   /* reset clipping if it was set */
   if(clipped == MU_CLIP_PART) {
@@ -1455,9 +1457,9 @@ static void begin_root_container(mu_Context *ctx, mu_Container *cnt) {
 
   if(ctx->root_list.size() == 1) {
     // first window (from code / not z-index)
-    ctx->vgir_begin = vgir_store_jump_src(ctx->vgir);
+    ctx->vgir_begin = vgir::store_jump_src(ctx->vgir);
   }
-  cnt->vgir_begin = vgir_store_jump_src(ctx->vgir);
+  cnt->vgir_begin = vgir::store_jump_src(ctx->vgir);
 
   /* set as hover root if the mouse is overlapping this container and it has a
   ** higher zindex than the current hover root */
@@ -1480,8 +1482,8 @@ static void end_root_container(mu_Context *ctx) {
   /* pop base clip rect and container */
   mu_pop_clip_rect(ctx);
   pop_container(ctx);
-  cnt->vgir_end = vgir_store_jump_src(ctx->vgir);
-  ctx->vgir_end = vgir_store_jump_src(ctx->vgir); // 1 past the window end
+  cnt->vgir_end = vgir::store_jump_src(ctx->vgir);
+  ctx->vgir_end = vgir::store_jump_src(ctx->vgir); // 1 past the window end
 }
 
 // TODO pass bool pointer for window open

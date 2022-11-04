@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include <aod/vgir.h>
+#include <aod/vgir.hpp>
 #include <functional>
 #include <optional>
 #include <stdbool.h>
@@ -261,7 +261,7 @@ mu_Vec2 mu_vec2(float x, float y);
 mu_Rect mu_rect(float x, float y, float w, float h);
 mu_Color mu_color(int r, int g, int b, int a);
 
-mu_Context *mu_init(vgir_ctx *);
+mu_Context *mu_init(aod::vgir::Ctx *);
 void mu_free(mu_Context *ctx);
 
 #if 0
@@ -275,8 +275,8 @@ using mu_TextHeightCb = float (*)(mu_Font font, int font_size);
 void mu_set_text_width_cb(mu_Context *ctx, mu_TextWidthCb);
 void mu_set_text_height_cb(mu_Context *ctx, mu_TextHeightCb);
 
-void mu_set_vgir(mu_Context *, vgir_ctx *);
-vgir_ctx *mu_get_vgir(mu_Context *);
+void mu_set_vgir(mu_Context *, aod::vgir::Ctx *);
+aod::vgir::Ctx *mu_get_vgir(mu_Context *);
 void mu_begin(mu_Context *ctx);
 void mu_end(mu_Context *ctx);
 void mu_set_focus(mu_Context *ctx, mu_Id id);
