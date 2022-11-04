@@ -96,14 +96,13 @@ static mu_Style default_style = {
     12,                             /* icon_font_size */
     {{0}, {0}, {0}, {0}, {0}, {0}}, /* icons_utf8 */
     {{68, 22}},                     // internal size (without margins)
-    // {0, 0, 0, 0},                   // padding
-    {10, 10, 10, 10}, // padding
-    {10, 10},         // margin
-    24,               // indent
-    24,               // title_height
-    20,               // footer_height
-    12,               // scrollbar_size
-    8,                // thumb_size
+    {10, 10, 10, 10},               // padding
+    {5, 5},                         // margin
+    24,                             // indent
+    24,                             // title_height
+    20,                             // footer_height
+    12,                             // scrollbar_size
+    8,                              // thumb_size
     {
         {230, 230, 230, 255}, /* MU_COLOR_TEXT */
         {25, 25, 25, 255},    /* MU_COLOR_BORDER */
@@ -525,10 +524,6 @@ static void pop_container(mu_Context *ctx) {
   mu_Container *cnt = mu_get_current_container(ctx);
   mu_Layout *layout = mu_get_layout(ctx);
 
-  // TODO handle padding correctly
-  const auto &padding = ctx->style->container_padding;
-  // cnt->content_size.x = layout->max.x - layout->body.x - padding.left - padding.right;
-  // cnt->content_size.y = layout->max.y - layout->body.y - padding.top - padding.bottom;
   cnt->content_size.x = layout->max.x - layout->body.x;
   cnt->content_size.y = layout->max.y - layout->body.y;
 
@@ -855,7 +850,6 @@ void mu_layout_row(mu_Context *ctx, int items, const int *widths, int height) {
     memcpy(layout->widths, widths, items * sizeof(widths[0]));
   }
   layout->items = items;
-  const auto margin = ctx->style->margin;
   layout->position = mu_vec2(layout->indent, layout->next_row);
   layout->size.y = height;
   layout->item_index = 0;
@@ -1625,7 +1619,9 @@ void mu_begin_panel_ex(mu_Context *ctx, const char *name, int opt) {
     opt |= MU_OPT_NOSCROLL;
     // adding margin because it's removed from the internal calculations.
     // ie every passed size is assumed to contain the margin already
-    mu_layout_set_next_size(ctx, cnt->content_size + ctx->style->margin);
+    const auto &padding = ctx->style->container_padding;
+    mu_Vec2 padding2{padding.left + padding.right, padding.top + padding.bottom};
+    mu_layout_set_next_size(ctx, cnt->content_size + ctx->style->margin + padding2);
   }
 
   cnt->rect = mu_layout_next(ctx);

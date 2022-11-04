@@ -219,6 +219,7 @@ struct mu_Container {
   vgir_jump_t vgir_begin, vgir_end;
   mu_Rect rect;
   mu_Rect body;
+  /// content size WITHOUT padding
   mu_Vec2 content_size;
   mu_Vec2 scroll;
   int zindex;
