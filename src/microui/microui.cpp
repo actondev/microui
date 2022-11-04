@@ -96,7 +96,7 @@ static mu_Style default_style = {
     12,                             /* icon_font_size */
     {{0}, {0}, {0}, {0}, {0}, {0}}, /* icons_utf8 */
     {{68, 22}},                     // internal size (without margins)
-    {10, 10, 10, 10},               // padding
+    {10, 10},                       // padding
     {5, 5},                         // margin
     24,                             // indent
     24,                             // title_height
@@ -1415,8 +1415,8 @@ static mu_Vec2 scrollbars(mu_Context *ctx, mu_Container *cnt, mu_Rect body) {
     body.h -= sz;
   }
 
-  cs.x += padding.left + padding.right;
-  cs.y += padding.top + padding.bottom;
+  cs.x += padding.x * 2;
+  cs.y += padding.y * 2;
 
   scrollbar(ctx, cnt, body, cs, MU_AXIS_Y);
   scrollbar(ctx, cnt, body, cs, MU_AXIS_X);
@@ -1433,13 +1433,11 @@ static void push_container_body(mu_Context *ctx, mu_Container *cnt, mu_Rect body
   body.w -= scrollbar_size.x;
   body.h -= scrollbar_size.y;
 
-  mu_Layout *layout = mu_get_layout(ctx);
-
   mu_Rect content = body;
-  content.x += padding.left;
-  content.y += padding.top;
-  content.w -= (padding.left + padding.right);
-  content.h -= (padding.top + padding.bottom);
+  content.x += padding.x;
+  content.y += padding.y;
+  content.w -= padding.x * 2;
+  content.h -= padding.y * 2;
   push_layout(ctx, content, cnt->scroll);
   cnt->body = content;
 
@@ -1619,9 +1617,10 @@ void mu_begin_panel_ex(mu_Context *ctx, const char *name, int opt) {
     opt |= MU_OPT_NOSCROLL;
     // adding margin because it's removed from the internal calculations.
     // ie every passed size is assumed to contain the margin already
+    const auto &margin = ctx->style->margin;
     const auto &padding = ctx->style->container_padding;
-    mu_Vec2 padding2{padding.left + padding.right, padding.top + padding.bottom};
-    mu_layout_set_next_size(ctx, cnt->content_size + ctx->style->margin + padding2);
+    const mu_Vec2 padded_size = {padding.x * 2, padding.y * 2};
+    mu_layout_set_next_size(ctx, cnt->content_size + margin + padded_size);
   }
 
   cnt->rect = mu_layout_next(ctx);
