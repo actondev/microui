@@ -275,6 +275,8 @@ using mu_TextHeightCb = float (*)(mu_Font font, int font_size);
 void mu_set_text_width_cb(mu_Context *ctx, mu_TextWidthCb);
 void mu_set_text_height_cb(mu_Context *ctx, mu_TextHeightCb);
 
+void mu_set_debug_box_model(mu_Context *, bool);
+
 void mu_set_vgir(mu_Context *, aod::vgir::Ctx *);
 aod::vgir::Ctx *mu_get_vgir(mu_Context *);
 void mu_begin(mu_Context *ctx);

@@ -205,6 +205,8 @@ struct mu_Context {
   int key_pressed{0};
   char input_text[32];
 
+  bool debug_mox_model{false};
+
   mu_Context(vgir::Ctx *vgir) : vgir(vgir) {
     expect(vgir);
     root_list.reserve(MU_ROOTLIST_SIZE);
@@ -292,6 +294,8 @@ vgir::Ctx *mu_get_vgir(mu_Context *ctx) { return ctx->vgir; }
 void mu_set_text_width_cb(mu_Context *ctx, mu_TextWidthCb cb) { ctx->text_width = cb; }
 
 void mu_set_text_height_cb(mu_Context *ctx, mu_TextHeightCb cb) { ctx->text_height = cb; }
+
+void mu_set_debug_box_model(mu_Context *ctx, bool value) { ctx->debug_mox_model = value; }
 
 void mu_begin(mu_Context *ctx) {
   expect(ctx->text_width && ctx->text_height);
@@ -461,6 +465,8 @@ void mu_pop_id(mu_Context *ctx) { pop(ctx->id_stack); }
 mu_Id mu_get_current_id(mu_Context *ctx) { return ctx->cur_id; }
 
 constexpr bool NOCLIP{false};
+constexpr mu_Color margin_color{0, 255, 0, 100};
+constexpr mu_Color padding_color{255, 0, 255, 50};
 
 void mu_push_clip_rect(mu_Context *ctx, mu_Rect rect, bool intersect) {
   if constexpr(NOCLIP)
@@ -968,6 +974,19 @@ mu_Rect mu_layout_next(mu_Context *ctx) {
 
   layout_absorb(layout, res);
 
+  if(ctx->debug_mox_model) {
+    auto vg = ctx->vgir;
+    vgir::begin_path(vg);
+    const auto &prev_res = ctx->last_rect;
+    vgir::begin_path(vg);
+    if(res.x == prev_res.x + prev_res.w + style->margin.x) {
+      vgir::rect(vg, res.x - style->margin.x, res.y, style->margin.x, res.h);
+    } else if(res.y == prev_res.y + prev_res.h + style->margin.y) {
+      vgir::rect(vg, res.x, res.y - style->margin.y, res.w, style->margin.y);
+    }
+    vgir::fill_color_u(vg, margin_color.r, margin_color.g, margin_color.b, margin_color.a);
+    vgir::fill(vg);
+  }
   return (ctx->last_rect = res);
 }
 
@@ -1442,6 +1461,17 @@ static void push_container_body(mu_Context *ctx, mu_Container *cnt, mu_Rect body
   content.h -= padding.y * 2;
   push_layout(ctx, content, cnt->scroll);
   cnt->body = content;
+
+  if(ctx->debug_mox_model) {
+    auto vg = ctx->vgir;
+    vgir::begin_path(vg);
+    vgir::rect(vg, body.x, body.y, body.w, padding.y);
+    vgir::rect(vg, body.x, body.y, padding.x, body.h);
+    vgir::rect(vg, content.x + content.w, body.y, padding.x, body.h);
+    vgir::rect(vg, body.x, content.y + content.h, body.w, padding.y);
+    vgir::fill_color_u(vg, padding_color.r, padding_color.g, padding_color.b, padding_color.a);
+    vgir::fill(vg);
+  }
 
   mu_push_clip_draw(ctx, body);
 
