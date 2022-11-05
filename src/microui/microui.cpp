@@ -100,6 +100,7 @@ static mu_Style default_style = {
     {{68, 22}},                     // internal size (without margins)
     {10, 10},                       // padding
     {5, 5},                         // margin
+    {1, 1},                         // border
     24,                             // indent
     24,                             // title_height
     20,                             // footer_height
@@ -242,8 +243,8 @@ mu_Color mu_color(int r, int g, int b, int a) {
   return res;
 }
 
-static mu_Rect expand_rect(mu_Rect rect, int n) {
-  return mu_rect(rect.x - n, rect.y - n, rect.w + n * 2, rect.h + n * 2);
+static mu_Rect shrink_rect(mu_Rect rect, mu_Vec2 value) {
+  return mu_rect(rect.x + value.x, rect.y + value.y, rect.w - value.x * 2, rect.h - value.y * 2);
 }
 
 // static mu_Rect expand_rect(mu_Rect rect, mu_Box box) {
@@ -251,10 +252,10 @@ static mu_Rect expand_rect(mu_Rect rect, int n) {
 // }
 
 static mu_Rect intersect_rects(mu_Rect r1, mu_Rect r2) {
-  int x1 = mu_max(r1.x, r2.x);
-  int y1 = mu_max(r1.y, r2.y);
-  int x2 = mu_min(r1.x + r1.w, r2.x + r2.w);
-  int y2 = mu_min(r1.y + r1.h, r2.y + r2.h);
+  float x1 = mu_max(r1.x, r2.x);
+  float y1 = mu_max(r1.y, r2.y);
+  float x2 = mu_min(r1.x + r1.w, r2.x + r2.w);
+  float y2 = mu_min(r1.y + r1.h, r2.y + r2.h);
   if(x2 < x1) {
     x2 = x1;
   }
@@ -269,13 +270,17 @@ static int rect_overlaps_vec2(mu_Rect r, mu_Vec2 p) {
 }
 
 static void draw_frame(mu_Context *ctx, mu_Rect rect, int colorid) {
-  mu_draw_rect(ctx, rect, ctx->style->colors[colorid]);
+  const auto clipped = intersect_rects(rect, mu_get_clip_rect(ctx));
+  if(clipped.w <= 0 || clipped.h <= 0)
+    return;
+
+  mu_draw_rect(ctx, rect, ctx->style->colors[colorid], false);
   if(colorid == MU_COLOR_SCROLLBASE || colorid == MU_COLOR_SCROLLTHUMB || colorid == MU_COLOR_TITLEBG) {
     return;
   }
   /* draw border */
   if(ctx->style->colors[MU_COLOR_BORDER].a) {
-    mu_draw_box(ctx, expand_rect(rect, 1), ctx->style->colors[MU_COLOR_BORDER]);
+    mu_draw_border(ctx, rect, ctx->style->colors[MU_COLOR_BORDER]);
   }
 }
 
@@ -729,28 +734,38 @@ void mu_input_text(mu_Context *ctx, const char *text) {
 ** Drawing
 **============================================================================*/
 
-void mu_draw_rect(mu_Context *ctx, mu_Rect rect, mu_Color color) {
-  rect = intersect_rects(rect, mu_get_clip_rect(ctx));
-  if(rect.w <= 0 || rect.h <= 0)
-    return;
+bool mu_draw_rect(mu_Context *ctx, mu_Rect rect, mu_Color color, bool check_clip) {
+  if(check_clip) {
+    rect = intersect_rects(rect, mu_get_clip_rect(ctx));
+    if(rect.w <= 0 || rect.h <= 0)
+      return false;
+  }
   vgir::begin_path(ctx->vgir);
   vgir::fill_color(ctx->vgir, color.r / 255.0, color.g / 255.0, color.b / 255.0, color.a / 255.0);
   vgir::rect(ctx->vgir, rect.x, rect.y, rect.w, rect.h);
   vgir::fill(ctx->vgir);
+  return true;
 }
 
-void mu_draw_box(mu_Context *ctx, mu_Rect rect, mu_Color color) {
-  mu_Rect clip = mu_get_clip_rect(ctx);
-  mu_Rect intersected = intersect_rects(rect, clip);
-  if(intersected.w <= 0 || intersected.h <= 0)
-    return;
+void mu_draw_border(mu_Context *ctx, mu_Rect rect, mu_Color color) {
+  const auto &border = ctx->style->border;
 
   auto vgir = ctx->vgir;
   vgir::begin_path(vgir);
+#if 0
   vgir::stroke_color(vgir, color.r / 255.0, color.g / 255.0, color.b / 255.0, color.a / 255.0);
-  vgir::stroke_width(vgir, 1);
+  vgir::stroke_width(vgir, border.x);
   vgir::rect(vgir, rect.x, rect.y, rect.w, rect.h);
   vgir::stroke(vgir);
+#else
+  vgir::rect(vgir, rect.x, rect.y, rect.w, border.y);                           // horizontal top
+  vgir::rect(vgir, rect.x, rect.y + rect.h - border.y, rect.w, border.y);       // horizontal bottom
+  vgir::rect(vgir, rect.x, rect.y + border.y, border.x, rect.h - border.y * 2); // vertical left
+  vgir::rect(vgir, rect.x + rect.w - border.x, rect.y + border.y, border.x,
+             rect.h - border.y * 2); // vertical right
+  vgir::fill_color(vgir, color.r / 255.f, color.g / 255.f, color.b / 255.f, color.a / 255.f);
+  vgir::fill(vgir);
+#endif
 }
 
 void mu_draw_text(mu_Context *ctx, mu_Font font, int font_size, const char *str, int len, mu_Vec2 pos, mu_Color color) {
@@ -1016,7 +1031,7 @@ static bool has_focus(mu_Context *ctx, mu_Id id) { return (ctx->focus && ctx->fo
 
 static inline void draw_focus(mu_Context *ctx, mu_Id id, mu_Rect rect) {
   if(has_focus(ctx, id)) {
-    mu_draw_box(ctx, rect, ctx->style->colors[MU_COLOR_FOCUS_BORDER]);
+    mu_draw_border(ctx, rect, ctx->style->colors[MU_COLOR_FOCUS_BORDER]);
   }
 }
 
@@ -1376,7 +1391,7 @@ static void scrollbar(mu_Context *ctx, mu_Container *cnt, mu_Rect body, mu_Vec2 
   int size = axis + 2; // x->w, y->h. size means height
 
   /* only add scrollbar if content size is larger than body */
-  int maxscroll = cs.data[axis] - body.data[size]; // ie cs.y - body.h
+  float maxscroll = cs.data[axis] - body.data[size]; // ie cs.y - body.h
   if(maxscroll <= 0 || body.data[size] <= 0) {
     cnt->scroll.data[axis] = 0;
     return;
@@ -1405,7 +1420,9 @@ static void scrollbar(mu_Context *ctx, mu_Container *cnt, mu_Rect body, mu_Vec2 
   thumb = base;
   thumb.data[size] = mu_max(ctx->style->thumb_size, base.data[size] * body.data[size] / cs.data[axis]);
   thumb.data[axis] += cnt->scroll.data[axis] * (base.data[size] - thumb.data[size]) / maxscroll;
-  draw_frame(ctx, thumb, MU_COLOR_BUTTON);
+
+  // WIP scrollbar like button
+  mu_draw_control_frame(ctx, id, thumb, MU_COLOR_BUTTON, 0);
 
   /* set this as the scroll_target (will get scrolled on mousewheel) */
   /* if the mouse is over it */
@@ -1469,7 +1486,8 @@ static void push_container_body(mu_Context *ctx, mu_Container *cnt, mu_Rect body
     vgir::fill(vg);
   }
 
-  mu_push_clip_draw(ctx, body);
+  mu_Rect unbordered = shrink_rect(body, ctx->style->border);
+  mu_push_clip_draw(ctx, unbordered);
 
   if(mu_mouse_over(ctx, body)) {
     ctx->hovered_container_stack.push_back(cnt->id);

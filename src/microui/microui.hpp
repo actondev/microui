@@ -247,6 +247,8 @@ typedef struct {
   // margin box model: margin is included in the calculated element size!
   // margin has 2 values: horizontal and vertical (x,y)
   mu_Vec2 margin;
+  // border is also part of the element, being drawn INSIDE it
+  mu_Vec2 border;
   int indent;
   int title_height;
   int footer_height;
@@ -345,8 +347,9 @@ void mu_input_text(mu_Context *ctx, const char *text);
 
 mu_Vec2 mu_get_mouse_pos(mu_Context *ctx);
 
-void mu_draw_rect(mu_Context *ctx, mu_Rect rect, mu_Color color);
-void mu_draw_box(mu_Context *ctx, mu_Rect rect, mu_Color color);
+/// Return false if not drawn because it's outside of current clip
+bool mu_draw_rect(mu_Context *ctx, mu_Rect rect, mu_Color color, bool check_clip = true);
+void mu_draw_border(mu_Context *ctx, mu_Rect rect, mu_Color color);
 void mu_draw_text(mu_Context *ctx, mu_Font font, int size, const char *str, int len, mu_Vec2 pos, mu_Color color);
 void mu_draw_icon(mu_Context *ctx, int id, mu_Rect rect, mu_Color color);
 
