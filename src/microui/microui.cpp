@@ -124,8 +124,6 @@ static mu_Style default_style = {
         {0, 255, 255, 100}    /* MU_COLOR_FOCUS_BORDER */
     }};
 
-static void default_draw_frame(mu_Context *ctx, mu_Rect rect, int colorid);
-
 template <typename Fn>
 struct mu_Handler {
   mu_Id id;
@@ -154,7 +152,6 @@ struct mu_Context {
   /* callbacks */
   mu_TextWidthCb text_width;
   mu_TextHeightCb text_height;
-  void (*draw_frame)(mu_Context *ctx, mu_Rect rect, int colorid);
   /* core state */
   mu_Style _style;
   mu_Style *style{nullptr};
@@ -215,7 +212,6 @@ struct mu_Context {
     id_stack.reserve(MU_IDSTACK_SIZE);
     layout_stack.reserve(MU_LAYOUTSTACK_SIZE);
 
-    draw_frame = default_draw_frame;
     _style = default_style;
     style = &_style;
   }
@@ -272,7 +268,7 @@ static int rect_overlaps_vec2(mu_Rect r, mu_Vec2 p) {
   return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
 }
 
-static void default_draw_frame(mu_Context *ctx, mu_Rect rect, int colorid) {
+static void draw_frame(mu_Context *ctx, mu_Rect rect, int colorid) {
   mu_draw_rect(ctx, rect, ctx->style->colors[colorid]);
   if(colorid == MU_COLOR_SCROLLBASE || colorid == MU_COLOR_SCROLLTHUMB || colorid == MU_COLOR_TITLEBG) {
     return;
@@ -1013,7 +1009,7 @@ void mu_draw_control_frame(mu_Context *ctx, mu_Id id, mu_Rect rect, int colorid,
     return;
   }
   colorid += (ctx->focus == id) ? 2 : (ctx->hover == id) ? 1 : 0;
-  ctx->draw_frame(ctx, rect, colorid);
+  draw_frame(ctx, rect, colorid);
 }
 
 static bool has_focus(mu_Context *ctx, mu_Id id) { return (ctx->focus && ctx->focus == id) || ctx->last_focus == id; }
@@ -1336,7 +1332,7 @@ static int header(mu_Context *ctx, const char *label, int istreenode, int opt) {
   /* draw */
   if(istreenode) {
     if(ctx->hover == id) {
-      ctx->draw_frame(ctx, r, MU_COLOR_BUTTONHOVER);
+      draw_frame(ctx, r, MU_COLOR_BUTTONHOVER);
     }
   } else {
     mu_draw_control_frame(ctx, id, r, MU_COLOR_BUTTON, 0);
@@ -1405,11 +1401,11 @@ static void scrollbar(mu_Context *ctx, mu_Container *cnt, mu_Rect body, mu_Vec2 
   cnt->scroll.data[axis] = mu_clamp(cnt->scroll.data[axis], 0, maxscroll);
 
   /* draw base and thumb */
-  ctx->draw_frame(ctx, base, MU_COLOR_SCROLLBASE);
+  draw_frame(ctx, base, MU_COLOR_SCROLLBASE);
   thumb = base;
   thumb.data[size] = mu_max(ctx->style->thumb_size, base.data[size] * body.data[size] / cs.data[axis]);
   thumb.data[axis] += cnt->scroll.data[axis] * (base.data[size] - thumb.data[size]) / maxscroll;
-  ctx->draw_frame(ctx, thumb, MU_COLOR_SCROLLTHUMB);
+  draw_frame(ctx, thumb, MU_COLOR_BUTTON);
 
   /* set this as the scroll_target (will get scrolled on mousewheel) */
   /* if the mouse is over it */
@@ -1536,14 +1532,14 @@ int mu_begin_window_ex(mu_Context *ctx, const char *title, mu_Rect rect, int opt
 
   /* draw frame */
   if(~opt & MU_OPT_NOFRAME) {
-    ctx->draw_frame(ctx, rect, MU_COLOR_WINDOWBG);
+    draw_frame(ctx, rect, MU_COLOR_WINDOWBG);
   }
 
   /* do title bar */
   titlerect = rect;
   titlerect.h = ctx->style->title_height;
   if(~opt & MU_OPT_NOTITLE) {
-    ctx->draw_frame(ctx, titlerect, MU_COLOR_TITLEBG);
+    draw_frame(ctx, titlerect, MU_COLOR_TITLEBG);
 
     /* do title text */
     if(~opt & MU_OPT_NOTITLE) {
@@ -1580,7 +1576,7 @@ int mu_begin_window_ex(mu_Context *ctx, const char *title, mu_Rect rect, int opt
     footer_rect.y = rect.y + rect.h - sz;
     footer_rect.w = rect.w;
     footer_rect.h = sz;
-    ctx->draw_frame(ctx, footer_rect, MU_COLOR_FOOTERBG);
+    draw_frame(ctx, footer_rect, MU_COLOR_FOOTERBG);
     if(~opt & MU_OPT_NORESIZE) {
       mu_Id id = mu_get_id(ctx, "!resize", 7);
       mu_Rect r = mu_rect(rect.x + rect.w - sz, rect.y + rect.h - sz, sz, sz);
@@ -1657,7 +1653,7 @@ void mu_begin_panel_ex(mu_Context *ctx, const char *name, int opt) {
 
   cnt->rect = mu_layout_next(ctx);
   if(~opt & MU_OPT_NOFRAME) {
-    ctx->draw_frame(ctx, cnt->rect, MU_COLOR_PANELBG);
+    draw_frame(ctx, cnt->rect, MU_COLOR_PANELBG);
   }
   push(ctx->container_stack, cnt);
   push_container_body(ctx, cnt, cnt->rect, opt);
