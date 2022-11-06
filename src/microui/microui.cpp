@@ -1461,17 +1461,14 @@ static mu_Vec2 scrollbars(mu_Context *ctx, mu_Container *cnt, mu_Rect body) {
 static void push_container_body(mu_Context *ctx, mu_Container *cnt, mu_Rect body, int opt) {
   mu_Vec2 scrollbar_size{0, 0};
   const auto &padding = ctx->style->container_padding;
+  body = shrink_rect(body, ctx->style->border);
   if(~opt & MU_OPT_NOSCROLL) {
     scrollbar_size = scrollbars(ctx, cnt, body);
   }
   body.w -= scrollbar_size.x;
   body.h -= scrollbar_size.y;
 
-  mu_Rect content = body;
-  content.x += padding.x;
-  content.y += padding.y;
-  content.w -= padding.x * 2;
-  content.h -= padding.y * 2;
+  mu_Rect content = shrink_rect(body, padding);
   push_layout(ctx, content, cnt->scroll);
   cnt->body = content;
 
@@ -1486,8 +1483,7 @@ static void push_container_body(mu_Context *ctx, mu_Container *cnt, mu_Rect body
     vgir::fill(vg);
   }
 
-  mu_Rect unbordered = shrink_rect(body, ctx->style->border);
-  mu_push_clip_draw(ctx, unbordered);
+  mu_push_clip_draw(ctx, body);
 
   if(mu_mouse_over(ctx, body)) {
     ctx->hovered_container_stack.push_back(cnt->id);
